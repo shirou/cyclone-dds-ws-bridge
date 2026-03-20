@@ -28,11 +28,16 @@ ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/x86_64-linux-gnu
 WORKDIR /app
 COPY Cargo.toml Cargo.lock build.rs wrapper.h ./
 COPY src/ src/
+COPY tests/ tests/
 
 RUN cargo build --release 2>&1
 
-# Run unit tests
+# Run unit tests + protocol integration tests
 RUN cargo test --release -- --test-threads=1 2>&1
+
+# Run integration tests (requires DDS, uses in-process bridge)
+RUN CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>' \
+    cargo test --release --test integration_pubsub -- --test-threads=1 2>&1
 
 # Runtime stage
 FROM debian:bookworm-slim AS runtime

@@ -94,5 +94,37 @@ services:
       bridge:
         condition: service_healthy
 
+  # Phase 7: Python client tests (pytest-based, against running bridge)
+  #
+  # Run: docker compose -f docker-compose.test.yml --profile client up --abort-on-container-exit
+
+  bridge-for-client:
+    profiles: ["client"]
+    build:
+      context: .
+      target: runtime
+    environment:
+      - CYCLONEDDS_URI=<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>
+      - DDS_BRIDGE_WS_ADDR=0.0.0.0
+      - DDS_BRIDGE_WS_PORT=9876
+      - RUST_LOG=debug
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9876' 2>/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  py-client:
+    profiles: ["client"]
+    build:
+      context: .
+      dockerfile: tests/client/Dockerfile
+    environment:
+      - BRIDGE_ADDR=ws://bridge-for-client:9876
+    depends_on:
+      bridge-for-client:
+        condition: service_healthy
+
 volumes:
   interop-fixtures:

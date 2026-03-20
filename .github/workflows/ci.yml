@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust-build-and-test:
+    name: Rust build + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build bridge image (includes unit tests)
+        run: docker build --target builder -t bridge-builder .
+
+  go-unit-tests:
+    name: Go client unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Run Go tests
+        working-directory: ddswsclient
+        run: go test -v ./...
+
+  interop-tests:
+    name: CDR interop tests (Go <-> Python)
+    runs-on: ubuntu-latest
+    needs: [rust-build-and-test, go-unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build interop images
+        run: docker compose -f docker-compose.test.yml --profile interop build
+      - name: Run Go verification (decodes Python fixtures)
+        run: >
+          docker compose -f docker-compose.test.yml
+          --profile interop
+          up --abort-on-container-exit --exit-code-from go-verify
+      - name: Run Python verification (decodes Go fixtures)
+        run: >
+          docker compose -f docker-compose.test.yml
+          --profile interop
+          up --abort-on-container-exit --exit-code-from py-verify
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.test.yml --profile interop down -v
+
+  e2e-tests:
+    name: Bridge E2E tests
+    runs-on: ubuntu-latest
+    needs: [rust-build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Go E2E tests
+        run: >
+          docker compose -f docker-compose.test.yml
+          --profile e2e
+          up --abort-on-container-exit --exit-code-from go-e2e
+      - name: Run Python E2E tests
+        run: >
+          docker compose -f docker-compose.test.yml
+          --profile e2e
+          up --abort-on-container-exit --exit-code-from py-e2e
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.test.yml --profile e2e down -v
+
+  client-tests:
+    name: Python client tests (pytest)
+    runs-on: ubuntu-latest
+    needs: [rust-build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Python client tests
+        run: >
+          docker compose -f docker-compose.test.yml
+          --profile client
+          up --abort-on-container-exit --exit-code-from py-client
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.test.yml --profile client down -v
