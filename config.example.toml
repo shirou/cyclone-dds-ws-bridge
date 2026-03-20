@@ -1,0 +1,16 @@
+[websocket]
+addr = "127.0.0.1"
+port = 9876
+max_connections = 64
+idle_timeout_secs = 30
+
+[dds]
+domain_id = 0
+# cyclonedds_uri = "<CycloneDDS><Domain><General><Interfaces><NetworkInterface name=\"lo\"/></Interfaces></General></Domain></CycloneDDS>"
+
+[bridge]
+max_payload_size = 4194304    # 4 MiB
+session_buffer_size = 256
+
+[logging]
+level = "info"
