@@ -33,3 +33,20 @@ RUN cargo build --release 2>&1
 
 # Run unit tests
 RUN cargo test --release -- --test-threads=1 2>&1
+
+# Runtime stage
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /app/target/release/cyclone-dds-ws-bridge /usr/local/bin/cyclone-dds-ws-bridge
+
+ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/x86_64-linux-gnu
+
+EXPOSE 9876
+
+CMD ["cyclone-dds-ws-bridge"]

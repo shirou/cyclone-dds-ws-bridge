@@ -7,9 +7,10 @@ services:
   #   3. go-verify: Go decodes py_*.bin + byte-exact comparison
   #   4. py-verify: Python decodes go_*.bin + value comparison
   #
-  # Run: docker compose -f docker-compose.test.yml up --abort-on-container-exit
+  # Run: docker compose -f docker-compose.test.yml --profile interop up --abort-on-container-exit
 
   go-generate-fixtures:
+    profiles: ["interop"]
     build:
       context: .
       dockerfile: tests/interop/go/Dockerfile
@@ -18,6 +19,7 @@ services:
       - interop-fixtures:/app/tests/interop/fixtures
 
   py-generate-fixtures:
+    profiles: ["interop"]
     build:
       context: .
       dockerfile: tests/interop/python/Dockerfile
@@ -26,6 +28,7 @@ services:
       - interop-fixtures:/app/fixtures
 
   go-verify:
+    profiles: ["interop"]
     build:
       context: .
       dockerfile: tests/interop/go/Dockerfile
@@ -37,6 +40,7 @@ services:
       - interop-fixtures:/app/tests/interop/fixtures
 
   py-verify:
+    profiles: ["interop"]
     build:
       context: .
       dockerfile: tests/interop/python/Dockerfile
@@ -47,15 +51,48 @@ services:
     volumes:
       - interop-fixtures:/app/fixtures
 
-  # Phase 6-2: Bridge E2E tests (future)
-  # bridge:
-  #   build: .
-  #   environment:
-  #     - CYCLONEDDS_URI=<inline XML: localhost-only>
-  #     - DDS_BRIDGE_WS_ADDR=0.0.0.0
-  #     - DDS_BRIDGE_WS_PORT=9876
-  #   ports:
-  #     - "9876:9876"
+  # Phase 6-2: Bridge E2E tests
+  #
+  # Run: docker compose -f docker-compose.test.yml --profile e2e up --abort-on-container-exit
+
+  bridge:
+    profiles: ["e2e"]
+    build:
+      context: .
+      target: runtime
+    environment:
+      - CYCLONEDDS_URI=<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>
+      - DDS_BRIDGE_WS_ADDR=0.0.0.0
+      - DDS_BRIDGE_WS_PORT=9876
+      - RUST_LOG=debug
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9876' 2>/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  go-e2e:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: tests/e2e/go/Dockerfile
+    environment:
+      - BRIDGE_ADDR=ws://bridge:9876
+    depends_on:
+      bridge:
+        condition: service_healthy
+
+  py-e2e:
+    profiles: ["e2e"]
+    build:
+      context: .
+      dockerfile: tests/e2e/python/Dockerfile
+    environment:
+      - BRIDGE_ADDR=ws://bridge:9876
+    depends_on:
+      bridge:
+        condition: service_healthy
 
 volumes:
   interop-fixtures:

@@ -11,13 +11,13 @@ echo ""
 echo "Building and running all interop test services..."
 echo ""
 
-docker compose -f docker-compose.test.yml up \
+docker compose -f docker-compose.test.yml --profile interop up \
     --build \
     --abort-on-container-exit \
     --exit-code-from go-verify
 
 rc=$?
 
-docker compose -f docker-compose.test.yml down -v
+docker compose -f docker-compose.test.yml --profile interop down -v
 
 exit $rc
