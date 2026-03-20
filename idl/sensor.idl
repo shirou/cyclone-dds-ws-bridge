@@ -1,0 +1,16 @@
+// Sample IDL for cyclone-dds-ws-bridge interop testing.
+// This IDL is shared between Go (go-dds-idlgen) and Python (pycdr2).
+
+module sensor {
+
+    @final
+    struct SensorData {
+        @key
+        long sensor_id;
+        double temperature;
+        float humidity;
+        string location;
+        boolean active;
+    };
+
+};

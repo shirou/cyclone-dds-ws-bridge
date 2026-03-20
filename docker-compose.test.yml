@@ -1,0 +1,61 @@
+services:
+  # Phase 6-1: CDR interop tests (no bridge required)
+  #
+  # Pipeline:
+  #   1. go-generate-fixtures: Go marshals test data -> go_*.bin
+  #   2. py-generate-fixtures: Python marshals test data -> py_*.bin
+  #   3. go-verify: Go decodes py_*.bin + byte-exact comparison
+  #   4. py-verify: Python decodes go_*.bin + value comparison
+  #
+  # Run: docker compose -f docker-compose.test.yml up --abort-on-container-exit
+
+  go-generate-fixtures:
+    build:
+      context: .
+      dockerfile: tests/interop/go/Dockerfile
+    command: ["go", "test", "-v", "-run", "TestGenerateGoFixtures", "./..."]
+    volumes:
+      - interop-fixtures:/app/tests/interop/fixtures
+
+  py-generate-fixtures:
+    build:
+      context: .
+      dockerfile: tests/interop/python/Dockerfile
+    command: ["python3", "/app/scripts/generate_fixtures.py"]
+    volumes:
+      - interop-fixtures:/app/fixtures
+
+  go-verify:
+    build:
+      context: .
+      dockerfile: tests/interop/go/Dockerfile
+    command: ["go", "test", "-v", "-run", "TestDecodePythonFixtures|TestByteExactComparison", "./..."]
+    depends_on:
+      py-generate-fixtures:
+        condition: service_completed_successfully
+    volumes:
+      - interop-fixtures:/app/tests/interop/fixtures
+
+  py-verify:
+    build:
+      context: .
+      dockerfile: tests/interop/python/Dockerfile
+    command: ["python3", "/app/scripts/verify_go_fixtures.py"]
+    depends_on:
+      go-generate-fixtures:
+        condition: service_completed_successfully
+    volumes:
+      - interop-fixtures:/app/fixtures
+
+  # Phase 6-2: Bridge E2E tests (future)
+  # bridge:
+  #   build: .
+  #   environment:
+  #     - CYCLONEDDS_URI=<inline XML: localhost-only>
+  #     - DDS_BRIDGE_WS_ADDR=0.0.0.0
+  #     - DDS_BRIDGE_WS_PORT=9876
+  #   ports:
+  #     - "9876:9876"
+
+volumes:
+  interop-fixtures:

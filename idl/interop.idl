@@ -1,0 +1,58 @@
+// Extended IDL for comprehensive interop testing.
+// Tests various primitive types, nested structs, sequences, and enums.
+
+module interop {
+
+    enum Color {
+        RED,
+        GREEN,
+        BLUE
+    };
+
+    @final
+    struct Point {
+        double x;
+        double y;
+        double z;
+    };
+
+    @final
+    struct PrimitiveTypes {
+        boolean val_bool;
+        octet val_octet;
+        short val_short;
+        unsigned short val_ushort;
+        long val_long;
+        unsigned long val_ulong;
+        long long val_longlong;
+        unsigned long long val_ulonglong;
+        float val_float;
+        double val_double;
+        string val_string;
+    };
+
+    @final
+    struct KeyedMessage {
+        @key
+        long id;
+        @key
+        string topic;
+        string payload;
+        long long timestamp_ns;
+    };
+
+    @final
+    struct WithSequence {
+        long count;
+        sequence<long> values;
+        string label;
+    };
+
+    @final
+    struct WithEnum {
+        long id;
+        Color color;
+        string description;
+    };
+
+};
