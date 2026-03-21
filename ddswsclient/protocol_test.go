@@ -291,9 +291,9 @@ func TestKeyDescriptorsEmpty(t *testing.T) {
 
 func TestQosRoundTrip(t *testing.T) {
 	policies := []QosPolicy{
-		QosReliabilityPolicy(1, 100),
-		QosDurabilityPolicy(1),
-		QosHistoryPolicy(0, 10),
+		QosReliabilityPolicy(ReliabilityReliable, 100),
+		QosDurabilityPolicy(DurabilityTransientLocal),
+		QosHistoryPolicy(HistoryKeepLast, 10),
 	}
 	data := encodeQos(policies)
 	got, n, err := decodeQos(data)
@@ -394,8 +394,8 @@ func TestFixtureSubscribe(t *testing.T) {
 		TopicName: "SensorData",
 		TypeName:  "sensor::SensorData",
 		Qos: []QosPolicy{
-			QosReliabilityPolicy(1, 100),
-			QosDurabilityPolicy(1),
+			QosReliabilityPolicy(ReliabilityReliable, 100),
+			QosDurabilityPolicy(DurabilityTransientLocal),
 		},
 		Keys: []KeyField{{Offset: 4, Size: 4, TypeHint: KeyInt32}},
 	}
@@ -477,7 +477,7 @@ func TestFixtureCreateWriter(t *testing.T) {
 	goMsg := BuildMessage(MsgCreateWriter, 6, EncodeCreateWriter(&CreateWriterPayload{
 		TopicName: "SensorData",
 		TypeName:  "sensor::SensorData",
-		Qos:       []QosPolicy{QosReliabilityPolicy(1, 100)},
+		Qos:       []QosPolicy{QosReliabilityPolicy(ReliabilityReliable, 100)},
 		Keys:      []KeyField{{Offset: 4, Size: 4, TypeHint: KeyInt32}},
 	}))
 	if !bytes.Equal(goMsg, data) {
@@ -577,17 +577,17 @@ func TestFixturePong(t *testing.T) {
 
 func TestAllQosPoliciesRoundTrip(t *testing.T) {
 	policies := []QosPolicy{
-		QosReliabilityPolicy(0, 200),
-		QosDurabilityPolicy(2),
-		QosHistoryPolicy(1, 0),
+		QosReliabilityPolicy(ReliabilityBestEffort, 200),
+		QosDurabilityPolicy(DurabilityTransient),
+		QosHistoryPolicy(HistoryKeepAll, 0),
 		QosDeadlinePolicy(500),
 		QosLatencyBudgetPolicy(50),
 		QosOwnershipStrengthPolicy(42),
-		QosLivelinessPolicy(2, 1000),
-		QosDestinationOrderPolicy(1),
-		QosPresentationPolicy(1, 1, 0),
+		QosLivelinessPolicy(LivelinessManualByTopic, 1000),
+		QosDestinationOrderPolicy(DestinationOrderBySourceTimestamp),
+		QosPresentationPolicy(PresentationTopic, 1, 0),
 		QosPartitionPolicy([]string{"part_a", "part_b"}),
-		QosOwnershipPolicy(1),
+		QosOwnershipPolicy(OwnershipExclusive),
 		QosWriterDataLifecyclePolicy(0),
 		QosTimeBasedFilterPolicy(100),
 	}

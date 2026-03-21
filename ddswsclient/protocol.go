@@ -111,6 +111,52 @@ type QosPolicy struct {
 	Data []byte // raw value bytes (excluding the policy_id byte)
 }
 
+// Reliability kind
+const (
+	ReliabilityBestEffort byte = 0
+	ReliabilityReliable   byte = 1
+)
+
+// Durability kind
+const (
+	DurabilityVolatile       byte = 0
+	DurabilityTransientLocal byte = 1
+	DurabilityTransient      byte = 2
+	DurabilityPersistent     byte = 3
+)
+
+// History kind
+const (
+	HistoryKeepLast byte = 0
+	HistoryKeepAll  byte = 1
+)
+
+// Liveliness kind
+const (
+	LivelinessAutomatic            byte = 0
+	LivelinessManualByParticipant  byte = 1
+	LivelinessManualByTopic        byte = 2
+)
+
+// DestinationOrder kind
+const (
+	DestinationOrderByReceptionTimestamp byte = 0
+	DestinationOrderBySourceTimestamp    byte = 1
+)
+
+// Presentation access scope
+const (
+	PresentationInstance byte = 0
+	PresentationTopic    byte = 1
+	PresentationGroup    byte = 2
+)
+
+// Ownership kind
+const (
+	OwnershipShared    byte = 0
+	OwnershipExclusive byte = 1
+)
+
 // QoS helper constructors
 
 func QosReliabilityPolicy(kind byte, maxBlockingTimeMs uint32) QosPolicy {

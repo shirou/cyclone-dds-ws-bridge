@@ -35,7 +35,7 @@ func Example() {
 	// Subscribe to a topic
 	sub, err := client.Subscribe(ctx, "SensorData", "sensor::SensorData",
 		[]ddswsclient.QosPolicy{
-			ddswsclient.QosReliabilityPolicy(1, 100),
+			ddswsclient.QosReliabilityPolicy(ddswsclient.ReliabilityReliable, 100),
 		},
 		[]ddswsclient.KeyField{
 			{Offset: 4, Size: 4, TypeHint: ddswsclient.KeyInt32},
@@ -50,7 +50,7 @@ func Example() {
 	// Create a writer for publishing
 	w, err := client.CreateWriter(ctx, "SensorData", "sensor::SensorData",
 		[]ddswsclient.QosPolicy{
-			ddswsclient.QosReliabilityPolicy(1, 100),
+			ddswsclient.QosReliabilityPolicy(ddswsclient.ReliabilityReliable, 100),
 		},
 		[]ddswsclient.KeyField{
 			{Offset: 4, Size: 4, TypeHint: ddswsclient.KeyInt32},
