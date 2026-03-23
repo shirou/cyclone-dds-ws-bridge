@@ -1,3 +1,4 @@
+use std::io::{Read as _, Write as _};
 use std::net::TcpStream;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -93,9 +94,25 @@ fn run_healthcheck(args: &[String]) -> i32 {
         }
     };
     match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
-        Ok(_) => {
-            println!("healthcheck: OK");
-            0
+        Ok(mut stream) => {
+            let request = format!("GET /health HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
+            if stream.write_all(request.as_bytes()).is_err() {
+                eprintln!("healthcheck: FAIL (write error)");
+                return 1;
+            }
+            let mut response = String::new();
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+            if stream.read_to_string(&mut response).is_err() {
+                eprintln!("healthcheck: FAIL (read error)");
+                return 1;
+            }
+            if response.starts_with("HTTP/1.1 200") {
+                println!("healthcheck: OK");
+                0
+            } else {
+                eprintln!("healthcheck: FAIL (unexpected response)");
+                1
+            }
         }
         Err(e) => {
             eprintln!("healthcheck: FAIL ({e})");

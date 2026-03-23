@@ -1,11 +1,14 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 
 use crate::bridge::{self, Bridge};
 use crate::ws::session;
+
+const HEALTH_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
 
 /// Start the WebSocket server. Runs until the provided shutdown signal fires.
 pub async fn start(
@@ -23,7 +26,7 @@ pub async fn start(
     loop {
         tokio::select! {
             accept_result = listener.accept() => {
-                let (stream, peer_addr) = match accept_result {
+                let (mut stream, peer_addr) = match accept_result {
                     Ok(s) => s,
                     Err(e) => {
                         tracing::warn!(error = %e, "accept failed");
@@ -35,6 +38,17 @@ pub async fn start(
                 if current >= max_connections {
                     tracing::warn!(peer = %peer_addr, "connection rejected: max_connections reached ({max_connections})");
                     drop(stream);
+                    continue;
+                }
+
+                // Peek to detect health check before counting as a connection
+                let mut buf = [0u8; 11];
+                let is_health = matches!(stream.peek(&mut buf).await, Ok(n) if n >= 11 && &buf[..11] == b"GET /health");
+                if is_health {
+                    // Drain the request to avoid TCP RST on close
+                    let mut discard = [0u8; 512];
+                    let _ = stream.read(&mut discard).await;
+                    let _ = stream.write_all(HEALTH_RESPONSE).await;
                     continue;
                 }
 
