@@ -72,14 +72,16 @@ pub async fn unregister_session(bridge: &Bridge, session_id: u64) {
     tracing::info!(session_id, "session cleaned up");
 }
 
-/// Handle a parsed client message. Returns a response message (header+payload) to send back.
+/// Handle a parsed client message. Returns a list of messages to send back.
+/// The first element is always the response. Additional elements are follow-up
+/// notifications (e.g. DataDisposed) that must be sent after the response.
 pub async fn handle_message(
     bridge: &Bridge,
     session_id: u64,
     msg_type: MsgType,
     request_id: u32,
     payload: &[u8],
-) -> Vec<u8> {
+) -> Vec<Vec<u8>> {
     let result = match msg_type {
         MsgType::Subscribe => handle_subscribe(bridge, session_id, request_id, payload).await,
         MsgType::Unsubscribe => handle_unsubscribe(bridge, session_id, request_id, payload).await,
@@ -94,7 +96,7 @@ pub async fn handle_message(
         MsgType::DeleteWriter => {
             handle_delete_writer(bridge, session_id, request_id, payload).await
         }
-        MsgType::Ping => Ok(build_message(MsgType::Pong, request_id, &[])),
+        MsgType::Ping => Ok(vec![build_message(MsgType::Pong, request_id, &[])]),
         _ => Err(make_error_response(
             request_id,
             ErrorCode::InvalidMessage,
@@ -103,8 +105,8 @@ pub async fn handle_message(
     };
 
     match result {
-        Ok(response) => response,
-        Err(error_msg) => error_msg,
+        Ok(messages) => messages,
+        Err(error_msg) => vec![error_msg],
     }
 }
 
@@ -113,7 +115,7 @@ async fn handle_subscribe(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let sub = protocol::parse_subscribe(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
@@ -143,7 +145,7 @@ async fn handle_subscribe(
         "subscribed"
     );
 
-    Ok(build_message(MsgType::Ok, request_id, &[]))
+    Ok(vec![build_message(MsgType::Ok, request_id, &[])])
 }
 
 async fn handle_unsubscribe(
@@ -151,7 +153,7 @@ async fn handle_unsubscribe(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let unsub = protocol::parse_unsubscribe(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
@@ -178,7 +180,7 @@ async fn handle_unsubscribe(
         "unsubscribed"
     );
 
-    Ok(build_message(MsgType::Ok, request_id, &[]))
+    Ok(vec![build_message(MsgType::Ok, request_id, &[])])
 }
 
 async fn handle_write(
@@ -186,12 +188,13 @@ async fn handle_write(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let write_payload = protocol::parse_write(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
     let mut inner = bridge.lock().await;
-    do_write_op(&mut inner, session_id, request_id, &write_payload.0, WriteOp::Write)
+    let resp = do_write_op(&mut inner, session_id, request_id, &write_payload.0, WriteOp::Write)?;
+    Ok(vec![resp])
 }
 
 async fn handle_dispose(
@@ -199,18 +202,22 @@ async fn handle_dispose(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let dispose_payload = protocol::parse_dispose(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
     let mut inner = bridge.lock().await;
-    do_write_op(
+    let resp = do_write_op(
         &mut inner,
         session_id,
         request_id,
         &dispose_payload.0,
         WriteOp::Dispose,
-    )
+    )?;
+
+    // dds_dispose on opaque sertypes does not reliably generate a takeable
+    // sample in the reader poll loop. Notify subscribers directly.
+    Ok(resp_with_dispose_notification(&inner, session_id, resp, &dispose_payload.0))
 }
 
 async fn handle_write_dispose(
@@ -218,18 +225,20 @@ async fn handle_write_dispose(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let wd_payload = protocol::parse_write_dispose(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
     let mut inner = bridge.lock().await;
-    do_write_op(
+    let resp = do_write_op(
         &mut inner,
         session_id,
         request_id,
         &wd_payload.0,
         WriteOp::WriteDispose,
-    )
+    )?;
+
+    Ok(resp_with_dispose_notification(&inner, session_id, resp, &wd_payload.0))
 }
 
 #[derive(Clone, Copy)]
@@ -330,7 +339,7 @@ async fn handle_create_writer(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let cw = protocol::parse_create_writer(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
@@ -351,7 +360,7 @@ async fn handle_create_writer(
 
     // OK response payload: writer_id as 4 bytes LE
     let ok_payload = writer_id.to_le_bytes().to_vec();
-    Ok(build_message(MsgType::Ok, request_id, &ok_payload))
+    Ok(vec![build_message(MsgType::Ok, request_id, &ok_payload)])
 }
 
 async fn handle_delete_writer(
@@ -359,7 +368,7 @@ async fn handle_delete_writer(
     session_id: u64,
     request_id: u32,
     payload: &[u8],
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Result<Vec<Vec<u8>>, Vec<u8>> {
     let dw = protocol::parse_delete_writer(payload)
         .map_err(|e| make_error_response(request_id, ErrorCode::InvalidMessage, &e.to_string()))?;
 
@@ -378,7 +387,63 @@ async fn handle_delete_writer(
 
     tracing::debug!(session_id, writer_id = dw.writer_id, "writer deleted");
 
-    Ok(build_message(MsgType::Ok, request_id, &[]))
+    Ok(vec![build_message(MsgType::Ok, request_id, &[])])
+}
+
+/// Wrap a response with a DataDisposed notification for all subscribers.
+///
+/// The DDS reader poll loop may not reliably deliver dispose notifications for
+/// opaque sertypes, so we send them explicitly. The notification for the
+/// requesting session is appended after the response (same channel) to
+/// guarantee ordering; other subscribers are notified via their bridge channels.
+fn resp_with_dispose_notification(
+    inner: &BridgeInner,
+    requesting_session: u64,
+    resp: Vec<u8>,
+    mode: &protocol::WriteMode,
+) -> Vec<Vec<u8>> {
+    let (topic_name, type_name, key_data) = match mode {
+        protocol::WriteMode::TopicName {
+            topic_name,
+            type_name,
+            data,
+            ..
+        } => (topic_name.as_str(), type_name.as_str(), data.as_slice()),
+        protocol::WriteMode::WriterId { writer_id, data } => {
+            if let Some(writer) = inner.writers.find_by_id(*writer_id) {
+                (
+                    writer.topic.topic_name.as_str(),
+                    writer.topic.type_name.as_str(),
+                    data.as_slice(),
+                )
+            } else {
+                return vec![resp];
+            }
+        }
+    };
+
+    let payload = protocol::serialize_data_disposed(&protocol::DataDisposedPayload {
+        topic_name: topic_name.to_string(),
+        source_timestamp: 0,
+        key_data: key_data.to_vec(),
+    });
+    let msg = build_message(MsgType::DataDisposed, 0, &payload);
+
+    let mut messages = vec![resp];
+
+    for reader in inner.readers.all_readers() {
+        if reader.topic.topic_name == topic_name && reader.topic.type_name == type_name {
+            for &sid in &reader.subscribers {
+                if sid == requesting_session {
+                    messages.push(msg.clone());
+                } else if let Some(sender) = inner.session_senders.get(&sid) {
+                    let _ = sender.try_send(OutboundMessage { data: msg.clone() });
+                }
+            }
+        }
+    }
+
+    messages
 }
 
 fn make_error_response(request_id: u32, code: ErrorCode, message: &str) -> Vec<u8> {

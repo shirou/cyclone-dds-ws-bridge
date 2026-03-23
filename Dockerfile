@@ -32,12 +32,9 @@ COPY tests/ tests/
 
 RUN cargo build --release 2>&1
 
-# Run unit tests + protocol integration tests
-RUN cargo test --release -- --test-threads=1 2>&1
-
-# Run integration tests (requires DDS, uses in-process bridge)
+# Run all tests (loopback config required for DDS integration tests in Docker)
 RUN CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>' \
-    cargo test --release --test integration_pubsub -- --test-threads=1 2>&1
+    cargo test --release -- --test-threads=1 2>&1
 
 # Runtime stage
 FROM debian:bookworm-slim AS runtime

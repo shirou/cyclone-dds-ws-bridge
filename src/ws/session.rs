@@ -56,10 +56,10 @@ pub async fn run_session(bridge: Bridge, ws: WebSocketStream<TcpStream>, session
 
         match msg {
             Message::Binary(data) => {
-                let response =
+                let messages =
                     process_binary_frame(&bridge, session_id, &data, max_payload_size).await;
-                if let Some(resp) = response {
-                    if resp_tx.send(resp).await.is_err() {
+                for msg in messages {
+                    if resp_tx.send(msg).await.is_err() {
                         break;
                     }
                 }
@@ -86,39 +86,37 @@ async fn process_binary_frame(
     session_id: u64,
     data: &[u8],
     max_payload_size: usize,
-) -> Option<Vec<u8>> {
+) -> Vec<Vec<u8>> {
     if data.len() < HEADER_SIZE {
-        return Some(make_parse_error(0, "message too short"));
+        return vec![make_parse_error(0, "message too short")];
     }
 
     let header = match protocol::parse_header(data) {
         Ok(h) => h,
         Err(e) => {
-            return Some(make_parse_error(0, &e.to_string()));
+            return vec![make_parse_error(0, &e.to_string())];
         }
     };
 
     if let Err(e) = protocol::validate_client_header(&header, VERSION, max_payload_size) {
-        return Some(make_parse_error(header.request_id, &e.to_string()));
+        return vec![make_parse_error(header.request_id, &e.to_string())];
     }
 
     let expected_len = HEADER_SIZE + header.payload_length as usize;
     if data.len() < expected_len {
-        return Some(make_parse_error(
+        return vec![make_parse_error(
             header.request_id,
             &format!(
                 "incomplete message: expected {} bytes, got {}",
                 expected_len,
                 data.len()
             ),
-        ));
+        )];
     }
 
     let payload = &data[HEADER_SIZE..expected_len];
-    let response =
-        bridge::handle_message(bridge, session_id, header.msg_type, header.request_id, payload)
-            .await;
-    Some(response)
+    bridge::handle_message(bridge, session_id, header.msg_type, header.request_id, payload)
+        .await
 }
 
 fn make_parse_error(request_id: u32, message: &str) -> Vec<u8> {

@@ -122,6 +122,11 @@ impl WriterRegistry {
         wid
     }
 
+    /// Get a writer by ID without ownership check (for topic lookup).
+    pub fn find_by_id(&self, writer_id: u32) -> Option<&DdsWriter> {
+        self.writers.get(&writer_id).map(|(w, _)| w)
+    }
+
     /// Get a writer by ID, checking session ownership.
     pub fn get(&self, writer_id: u32, session_id: u64) -> Result<&DdsWriter, DdsError> {
         match self.writers.get(&writer_id) {
