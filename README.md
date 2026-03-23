@@ -66,6 +66,9 @@ DDS_BRIDGE_WS_ADDR=0.0.0.0 DDS_BRIDGE_WS_PORT=9876 cyclone-dds-ws-bridge
 
 # Docker
 docker run -p 9876:9876 -e DDS_BRIDGE_WS_ADDR=0.0.0.0 cyclone-dds-ws-bridge
+
+# Healthcheck (exits 0 if the bridge is listening, 1 otherwise)
+cyclone-dds-ws-bridge healthcheck
 ```
 
 ## Configuration

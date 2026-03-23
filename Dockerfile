@@ -51,4 +51,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/x86_64-linux-gnu
 
 EXPOSE 9876
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["cyclone-dds-ws-bridge", "healthcheck"]
+
 CMD ["cyclone-dds-ws-bridge"]

@@ -1,3 +1,4 @@
+use std::net::TcpStream;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -9,8 +10,14 @@ use cyclone_dds_ws_bridge::ws;
 
 #[tokio::main]
 async fn main() {
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.get(1).map(|s| s.as_str()) == Some("healthcheck") {
+        std::process::exit(run_healthcheck(&args));
+    }
+
     // Load configuration
-    let config = match load_config() {
+    let config = match load_config_from_args(&args) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("configuration error: {e}");
@@ -66,9 +73,38 @@ async fn main() {
     poll_handle.abort();
 }
 
-fn load_config() -> Result<Config, cyclone_dds_ws_bridge::config::ConfigError> {
-    // Check for --config argument
-    let args: Vec<String> = std::env::args().collect();
+fn run_healthcheck(args: &[String]) -> i32 {
+    let config = match load_config_from_args(args) {
+        Ok(c) => c,
+        Err(_) => Config::default(),
+    };
+
+    let host = if config.websocket.addr == "0.0.0.0" {
+        "127.0.0.1"
+    } else {
+        &config.websocket.addr
+    };
+    let addr = format!("{host}:{}", config.websocket.port);
+    let sock_addr = match addr.parse() {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("healthcheck: invalid address {addr}: {e}");
+            return 1;
+        }
+    };
+    match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
+        Ok(_) => {
+            println!("healthcheck: OK");
+            0
+        }
+        Err(e) => {
+            eprintln!("healthcheck: FAIL ({e})");
+            1
+        }
+    }
+}
+
+fn load_config_from_args(args: &[String]) -> Result<Config, cyclone_dds_ws_bridge::config::ConfigError> {
     let config_path = args
         .windows(2)
         .find(|w| w[0] == "--config")
