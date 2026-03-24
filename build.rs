@@ -4,9 +4,9 @@ use std::path::PathBuf;
 fn main() {
     // Find Cyclone DDS via pkg-config
     let cyclone = pkg_config::Config::new()
-        .atleast_version("0.10.0")
+        .atleast_version("11.0.0")
         .probe("CycloneDDS")
-        .expect("CycloneDDS not found via pkg-config. Install Cyclone DDS >= 0.10.0");
+        .expect("CycloneDDS not found via pkg-config. Install Cyclone DDS >= 11.0.0");
 
     // Collect include paths for bindgen
     let include_args: Vec<String> = cyclone

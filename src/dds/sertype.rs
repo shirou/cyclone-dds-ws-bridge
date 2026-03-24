@@ -423,6 +423,8 @@ static SERDATA_OPS: ddsi_serdata_ops = ddsi_serdata_ops {
     free: Some(sd_free),
     print: None,
     get_keyhash: Some(sd_get_keyhash),
+    from_loaned_sample: None,
+    from_psmx: None,
 };
 
 // Safety: the `arg` field is null and never written to.

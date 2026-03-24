@@ -138,7 +138,7 @@ async fn handle_subscribe(
         )
         .map_err(|e| make_error_response(request_id, ErrorCode::DdsError, &e.to_string()))?;
 
-    tracing::debug!(
+    tracing::info!(
         session_id,
         topic = sub.topic_name,
         type_name = sub.type_name,
@@ -241,7 +241,7 @@ async fn handle_write_dispose(
     Ok(resp_with_dispose_notification(&inner, session_id, resp, &wd_payload.0))
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum WriteOp {
     Write,
     Dispose,
@@ -301,6 +301,13 @@ fn do_write_op(
                     )
                 })?;
 
+            tracing::debug!(
+                session_id,
+                topic = topic_name.as_str(),
+                data_len = data.len(),
+                op = ?op,
+                "sending message"
+            );
             execute_write_op(writer, op, data, request_id)?;
             Ok(build_message(MsgType::Ok, request_id, &[]))
         }
@@ -314,6 +321,13 @@ fn do_write_op(
                 make_error_response(request_id, code, &e.to_string())
             })?;
 
+            tracing::debug!(
+                session_id,
+                writer_id,
+                data_len = data.len(),
+                op = ?op,
+                "sending message"
+            );
             execute_write_op(writer, op, data, request_id)?;
             Ok(build_message(MsgType::Ok, request_id, &[]))
         }
@@ -512,6 +526,12 @@ pub async fn reader_poll_loop(bridge: Bridge, poll_interval: Duration) {
         // Fan out messages without holding the bridge lock
         for (samples, subscribers) in &fan_out {
             for sample in samples {
+                tracing::debug!(
+                    topic = sample.topic_name.as_str(),
+                    data_len = sample.data.len(),
+                    instance_state = ?sample.instance_state,
+                    "received message"
+                );
                 let msg = sample_to_message(sample);
                 for (sid, sender) in subscribers {
                     if sender

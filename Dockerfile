@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Build Cyclone DDS from source (0.10.5)
-ARG CYCLONEDDS_VERSION=0.10.5
+# Build Cyclone DDS from source (11.0.1)
+ARG CYCLONEDDS_VERSION=11.0.1
 RUN git clone --depth 1 --branch ${CYCLONEDDS_VERSION} \
         https://github.com/eclipse-cyclonedds/cyclonedds.git /tmp/cyclonedds && \
     cmake -S /tmp/cyclonedds -B /tmp/cyclonedds/build \

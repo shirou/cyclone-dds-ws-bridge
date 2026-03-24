@@ -121,14 +121,31 @@ fn run_healthcheck(args: &[String]) -> i32 {
     }
 }
 
+fn parse_verbosity(args: &[String]) -> Option<&str> {
+    for arg in args.iter().skip(1) {
+        match arg.as_str() {
+            "-vv" => return Some("trace"),
+            "-v" => return Some("debug"),
+            _ => {}
+        }
+    }
+    None
+}
+
 fn load_config_from_args(args: &[String]) -> Result<Config, cyclone_dds_ws_bridge::config::ConfigError> {
     let config_path = args
         .windows(2)
         .find(|w| w[0] == "--config")
         .map(|w| PathBuf::from(&w[1]));
 
-    match config_path {
-        Some(path) => Config::load(&path),
-        None => Config::from_defaults(),
+    let mut config = match config_path {
+        Some(path) => Config::load(&path)?,
+        None => Config::from_defaults()?,
+    };
+
+    if let Some(level) = parse_verbosity(args) {
+        config.logging.level = level.to_string();
     }
+
+    Ok(config)
 }
