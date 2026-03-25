@@ -167,6 +167,11 @@ impl WriterRegistry {
         }
     }
 
+    /// Number of registered writers.
+    pub fn count(&self) -> usize {
+        self.writers.len()
+    }
+
     /// Find a writer for a session by topic/type/qos (for implicit writer reuse in topic-name mode).
     pub fn find_by_topic(
         &self,

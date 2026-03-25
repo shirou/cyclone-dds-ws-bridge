@@ -66,6 +66,7 @@ fn main() {
         .allowlist_type("ddsi_serdata_kind")
         .allowlist_function("ddsi_sertype_init")
         .allowlist_function("ddsi_serdata_init")
+        // Fragchain helper for from_ser callback (compiled from helper.c)
         // SampleInfo
         .allowlist_type("dds_sample_info_t")
         // Status masks
@@ -83,4 +84,12 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings");
+
+    // Compile helper.c (fragchain copy helper)
+    let mut cc_build = cc::Build::new();
+    cc_build.file("helper.c");
+    for path in &cyclone.include_paths {
+        cc_build.include(path);
+    }
+    cc_build.compile("helper");
 }

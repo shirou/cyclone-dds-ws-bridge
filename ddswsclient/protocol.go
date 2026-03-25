@@ -133,9 +133,9 @@ const (
 
 // Liveliness kind
 const (
-	LivelinessAutomatic            byte = 0
-	LivelinessManualByParticipant  byte = 1
-	LivelinessManualByTopic        byte = 2
+	LivelinessAutomatic           byte = 0
+	LivelinessManualByParticipant byte = 1
+	LivelinessManualByTopic       byte = 2
 )
 
 // DestinationOrder kind

@@ -197,6 +197,32 @@ unsafe extern "C" fn sd_free(sd: *mut ddsi_serdata) {
     let _ = Box::from_raw(osd);
 }
 
+unsafe extern "C" fn sd_from_ser(
+    st: *const ddsi_sertype,
+    kind: ddsi_serdata_kind,
+    fragchain: *const ddsi_rdata,
+    size: usize,
+) -> *mut ddsi_serdata {
+    let mut buf = vec![0u8; size];
+    extern "C" {
+        fn copy_fragchain_to_buf(fragchain: *const ddsi_rdata, size: usize, buf: *mut u8) -> usize;
+    }
+    copy_fragchain_to_buf(fragchain, size, buf.as_mut_ptr());
+
+    let (data_ptr, data_len, data_cap) = vec_into_raw(buf);
+
+    let osd = Box::new(OpaqueSerdata {
+        base: std::mem::zeroed(),
+        data: data_ptr,
+        size: data_len,
+        capacity: data_cap,
+    });
+    let osd_ptr = Box::into_raw(osd);
+    ddsi_serdata_init(&mut (*osd_ptr).base, st, kind);
+    (*osd_ptr).base.hash = st_hash(st);
+    osd_ptr as *mut ddsi_serdata
+}
+
 unsafe extern "C" fn sd_from_ser_iov(
     st: *const ddsi_sertype,
     kind: ddsi_serdata_kind,
@@ -230,14 +256,37 @@ unsafe extern "C" fn sd_from_ser_iov(
     });
     let osd_ptr = Box::into_raw(osd);
     ddsi_serdata_init(&mut (*osd_ptr).base, st, kind);
+    // hash MUST be non-zero for CycloneDDS's concurrent hash table (ddsrt_chh).
+    // ddsi_serdata_init sets hash=0; CycloneDDS's own CDR sertype sets it to basehash.
+    // Use sertype hash as a stable non-zero value.
+    (*osd_ptr).base.hash = st_hash(st);
     osd_ptr as *mut ddsi_serdata
 }
 
 unsafe extern "C" fn sd_from_keyhash(
-    _st: *const ddsi_sertype,
-    _kh: *const ddsi_keyhash,
+    st: *const ddsi_sertype,
+    kh: *const ddsi_keyhash,
 ) -> *mut ddsi_serdata {
-    ptr::null_mut()
+    // Copy the 16-byte keyhash into a serdata so CycloneDDS can use it
+    // for instance management on keyed topics.
+    let kh_bytes = slice::from_raw_parts((*kh).value.as_ptr(), 16);
+    let buf = kh_bytes.to_vec();
+    let (data_ptr, data_len, data_cap) = vec_into_raw(buf);
+
+    let osd = Box::new(OpaqueSerdata {
+        base: std::mem::zeroed(),
+        data: data_ptr,
+        size: data_len,
+        capacity: data_cap,
+    });
+    let osd_ptr = Box::into_raw(osd);
+    ddsi_serdata_init(
+        &mut (*osd_ptr).base,
+        st,
+        ddsi_serdata_kind_SDK_KEY,
+    );
+    (*osd_ptr).base.hash = st_hash(st);
+    osd_ptr as *mut ddsi_serdata
 }
 
 unsafe extern "C" fn sd_from_sample(
@@ -258,6 +307,7 @@ unsafe extern "C" fn sd_from_sample(
     });
     let osd_ptr = Box::into_raw(osd);
     ddsi_serdata_init(&mut (*osd_ptr).base, st, kind);
+    (*osd_ptr).base.hash = st_hash(st);
     osd_ptr as *mut ddsi_serdata
 }
 
@@ -268,8 +318,11 @@ unsafe extern "C" fn sd_to_ser(
     buf: *mut c_void,
 ) {
     let osd = sd as *const OpaqueSerdata;
-    if !(*osd).data.is_null() && off + sz <= (*osd).size {
+    if !(*osd).data.is_null() && off + sz <= (*osd).size && sz > 0 {
         ptr::copy_nonoverlapping((*osd).data.add(off), buf as *mut u8, sz);
+    } else if sz > 0 {
+        // Zero-fill if data is unavailable to prevent reading uninitialized memory
+        ptr::write_bytes(buf as *mut u8, 0, sz);
     }
 }
 
@@ -280,8 +333,22 @@ unsafe extern "C" fn sd_to_ser_ref(
     ref_: *mut ddsrt_iovec_t,
 ) -> *mut ddsi_serdata {
     let osd = sd as *const OpaqueSerdata;
-    (*ref_).iov_base = (*osd).data.add(off) as *mut c_void;
-    (*ref_).iov_len = sz as _;
+    if !(*osd).data.is_null() && off + sz <= (*osd).size {
+        (*ref_).iov_base = (*osd).data.add(off) as *mut c_void;
+        (*ref_).iov_len = sz as _;
+    } else if sz > 0 {
+        // Out of range (e.g. keyhash serdata with 16 bytes).
+        // Allocate zeroed buffer on heap. This leaks, but CycloneDDS
+        // requires a valid writable pointer and sd_to_ser_unref only
+        // unrefs the serdata, not the iov buffer.
+        let buf = vec![0u8; sz].into_boxed_slice();
+        (*ref_).iov_base = Box::into_raw(buf) as *mut c_void;
+        (*ref_).iov_len = sz as _;
+    } else {
+        // sz == 0: return any valid pointer
+        (*ref_).iov_base = 1usize as *mut c_void; // non-null sentinel
+        (*ref_).iov_len = 0;
+    }
     serdata_ref(sd);
     sd as *mut ddsi_serdata
 }
@@ -330,17 +397,22 @@ unsafe extern "C" fn sd_get_keyhash(
     buf: *mut ddsi_keyhash,
     _force_md5: bool,
 ) {
+    let kh = &mut (*buf).value;
+
     let st = (*sd).type_ as *const OpaqueSertype;
     if (*st).key_fields.is_empty() {
+        // No key fields: fixed zero hash → all data treated as single instance.
+        // MUST write to buf; leaving it uninitialized causes CycloneDDS to crash.
+        kh.fill(0);
         return;
     }
     let osd = sd as *const OpaqueSerdata;
     if (*osd).data.is_null() || (*osd).size == 0 {
+        kh.fill(0);
         return;
     }
     let data = slice::from_raw_parts((*osd).data, (*osd).size);
     let hash = hash_key_bytes(data, &(*st).key_fields);
-    let kh = &mut (*buf).value;
     kh[..4].copy_from_slice(&hash.to_le_bytes());
     kh[4..].fill(0);
 }
@@ -410,7 +482,7 @@ unsafe extern "C" fn st_hash(st: *const ddsi_sertype) -> u32 {
 static SERDATA_OPS: ddsi_serdata_ops = ddsi_serdata_ops {
     eqkey: Some(sd_eqkey),
     get_size: Some(sd_size),
-    from_ser: None,
+    from_ser: Some(sd_from_ser),
     from_ser_iov: Some(sd_from_ser_iov),
     from_keyhash: Some(sd_from_keyhash),
     from_sample: Some(sd_from_sample),
@@ -458,21 +530,35 @@ pub unsafe fn create_opaque_sertype(
     key_descriptors: &KeyDescriptors,
 ) -> *mut ddsi_sertype {
     let c_name = CString::new(type_name).expect("type_name contains NUL");
-    let has_keys = !key_descriptors.keys.is_empty();
+    let _has_keys = !key_descriptors.keys.is_empty();
 
     let ost = Box::new(OpaqueSertype {
         base: std::mem::zeroed(),
-        key_fields: key_descriptors.keys.clone(),
+        // Always empty: opaque bridge cannot reliably extract keys from CDR.
+        // Key descriptors from the protocol are ignored for sertype purposes.
+        key_fields: Vec::new(),
     });
     let ost_ptr = Box::into_raw(ost);
 
+    // Always create as keyed topic (topickind_no_key = false).
+    // An opaque bridge cannot reliably extract keys from CDR data, so
+    // key_fields in OpaqueSertype is always empty — sd_eqkey returns true
+    // and sd_get_keyhash writes a fixed zero hash (single instance).
+    // Keyed topics match both WITH_KEY and NO_KEY remote writers/readers
+    // via RTPS, which is the safe default for interop.
     ddsi_sertype_init(
         &mut (*ost_ptr).base,
         c_name.as_ptr(),
         &SERTYPE_OPS_WRAPPER.0,
         &SERDATA_OPS,
-        !has_keys, // topickind_no_key: true when there are NO keys
+        false, // always keyed
     );
+
+    // Set allowed_data_representation to support both XCDR1 (0) and XCDR2 (2).
+    // ddsi_sertype_init sets DDS_DATA_REPRESENTATION_RESTRICT_DEFAULT which may
+    // exclude XCDR2, causing matching failure with RTI Connext (XCDR2 only).
+    // Bit 0 = XCDR1, Bit 2 = XCDR2.
+    (*ost_ptr).base.allowed_data_representation = (1u32 << 0) | (1u32 << 2);
 
     ost_ptr as *mut ddsi_sertype
 }

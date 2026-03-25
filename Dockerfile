@@ -26,7 +26,7 @@ ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkg
 ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/x86_64-linux-gnu
 
 WORKDIR /app
-COPY Cargo.toml Cargo.lock build.rs wrapper.h ./
+COPY Cargo.toml Cargo.lock build.rs wrapper.h helper.c ./
 COPY src/ src/
 COPY tests/ tests/
 

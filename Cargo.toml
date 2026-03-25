@@ -18,4 +18,5 @@ thiserror = "2"
 
 [build-dependencies]
 bindgen = "0.71"
+cc = "1"
 pkg-config = "0.3"
