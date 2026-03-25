@@ -48,15 +48,14 @@ func Example() {
 	}
 	defer sub.Unsubscribe(ctx)
 
-	// Create a writer for publishing
+	// Create a writer for publishing.
+	// For keyed topics, pass a KeyExtractFunc (e.g. cdr.SerializedKeyExtractor).
+	// For non-keyed topics, pass nil.
 	w, err := client.CreateWriter(ctx, "SensorData", "sensor::SensorData",
 		[]ddswsclient.QosPolicy{
 			ddswsclient.QosReliabilityPolicy(ddswsclient.ReliabilityReliable, 100),
 		},
-		true, // isKeyed
-		[]ddswsclient.KeyField{
-			{Offset: 4, Size: 4, TypeHint: ddswsclient.KeyInt32},
-		},
+		nil, // keyExtract (nil = non-keyed)
 	)
 	if err != nil {
 		fmt.Println("create writer:", err)

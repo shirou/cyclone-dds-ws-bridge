@@ -146,6 +146,31 @@ func TestWriteWriterIDModeRoundTrip(t *testing.T) {
 	}
 }
 
+// --- Write round-trip (writer-id mode with key bytes) ---
+
+func TestWriteWriterIDModeWithKeyBytesRoundTrip(t *testing.T) {
+	p := &WritePayload{
+		Mode:     WriteWriterMode,
+		WriterID: 42,
+		KeyBytes: []byte{0xA0, 0xB1, 0xC2, 0xD3},
+		Data:     []byte{0xDE, 0xAD},
+	}
+	data := EncodeWrite(p)
+	got, err := DecodeWrite(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Mode != WriteWriterMode || got.WriterID != 42 {
+		t.Fatalf("got %+v", got)
+	}
+	if !bytes.Equal(got.KeyBytes, p.KeyBytes) {
+		t.Fatalf("key bytes mismatch: got %x, want %x", got.KeyBytes, p.KeyBytes)
+	}
+	if !bytes.Equal(got.Data, p.Data) {
+		t.Fatalf("data mismatch: got %x, want %x", got.Data, p.Data)
+	}
+}
+
 // --- Dispose round-trip ---
 
 func TestDisposeRoundTrip(t *testing.T) {

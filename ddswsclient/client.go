@@ -74,6 +74,12 @@ func (s *Subscription) Unsubscribe(ctx context.Context) error {
 	return nil
 }
 
+// KeyExtractFunc extracts serialized key bytes from a CDR sample.
+// The returned bytes are sent alongside the data for DDS instance discrimination.
+// Generated types provide this via cdr.SerializedKeyExtractor.
+// nil means non-keyed topic.
+type KeyExtractFunc func(data []byte) (keyBytes []byte, err error)
+
 // Writer represents a DDS DataWriter that survives reconnections.
 // The underlying writer_id is transparently re-created on reconnect.
 type Writer struct {
@@ -84,11 +90,11 @@ type Writer struct {
 	closed   bool
 
 	// State for re-create on reconnect
-	topicName string
-	typeName  string
-	qos       []QosPolicy
-	isKeyed   bool
-	keys      []KeyField
+	topicName  string
+	typeName   string
+	qos        []QosPolicy
+	isKeyed    bool
+	keyExtract KeyExtractFunc
 }
 
 // Publish sends a WRITE (fire-and-forget) using this writer.
@@ -100,6 +106,7 @@ func (w *Writer) Publish(data []byte) error {
 		return ErrNotConnected
 	}
 	id := w.writerID
+	ke := w.keyExtract
 	w.mu.RUnlock()
 
 	w.client.connMu.RLock()
@@ -108,7 +115,16 @@ func (w *Writer) Publish(data []byte) error {
 	if conn == nil {
 		return ErrNotConnected
 	}
-	return conn.publish(id, data)
+
+	var keyBytes []byte
+	if ke != nil {
+		var err error
+		keyBytes, err = ke(data)
+		if err != nil {
+			return fmt.Errorf("extract key bytes: %w", err)
+		}
+	}
+	return conn.publish(id, keyBytes, data)
 }
 
 // PublishDispose sends a DISPOSE (fire-and-forget) using this writer.
@@ -119,6 +135,7 @@ func (w *Writer) PublishDispose(keyData []byte) error {
 		return ErrNotConnected
 	}
 	id := w.writerID
+	ke := w.keyExtract
 	w.mu.RUnlock()
 
 	w.client.connMu.RLock()
@@ -127,7 +144,16 @@ func (w *Writer) PublishDispose(keyData []byte) error {
 	if conn == nil {
 		return ErrNotConnected
 	}
-	return conn.publishDispose(id, keyData)
+
+	var keyBytes []byte
+	if ke != nil {
+		var err error
+		keyBytes, err = ke(keyData)
+		if err != nil {
+			return fmt.Errorf("extract key bytes: %w", err)
+		}
+	}
+	return conn.publishDispose(id, keyBytes, keyData)
 }
 
 // PublishWriteDispose sends a WRITE_DISPOSE (fire-and-forget) using this writer.
@@ -138,6 +164,7 @@ func (w *Writer) PublishWriteDispose(data []byte) error {
 		return ErrNotConnected
 	}
 	id := w.writerID
+	ke := w.keyExtract
 	w.mu.RUnlock()
 
 	w.client.connMu.RLock()
@@ -146,7 +173,16 @@ func (w *Writer) PublishWriteDispose(data []byte) error {
 	if conn == nil {
 		return ErrNotConnected
 	}
-	return conn.publishWriteDispose(id, data)
+
+	var keyBytes []byte
+	if ke != nil {
+		var err error
+		keyBytes, err = ke(data)
+		if err != nil {
+			return fmt.Errorf("extract key bytes: %w", err)
+		}
+	}
+	return conn.publishWriteDispose(id, keyBytes, data)
 }
 
 // Close deletes this writer. Safe to call multiple times.
@@ -349,7 +385,9 @@ func (c *Client) Subscribe(ctx context.Context, topicName, typeName string, qos 
 }
 
 // CreateWriter creates a DDS DataWriter that survives reconnections.
-func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, qos []QosPolicy, isKeyed bool, keys []KeyField) (*Writer, error) {
+// If keyExtract is non-nil, the topic is treated as keyed and the function
+// is called on every Publish to extract serialized key bytes.
+func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, qos []QosPolicy, keyExtract KeyExtractFunc) (*Writer, error) {
 	c.connMu.RLock()
 	conn := c.conn
 	c.connMu.RUnlock()
@@ -357,19 +395,20 @@ func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, q
 		return nil, ErrNotConnected
 	}
 
-	writerID, err := conn.createWriter(ctx, topicName, typeName, qos, isKeyed, keys)
+	isKeyed := keyExtract != nil
+	writerID, err := conn.createWriter(ctx, topicName, typeName, qos, isKeyed, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	w := &Writer{
-		client:    c,
-		writerID:  writerID,
-		topicName: topicName,
-		typeName:  typeName,
-		qos:       qos,
-		isKeyed:   isKeyed,
-		keys:      keys,
+		client:     c,
+		writerID:   writerID,
+		topicName:  topicName,
+		typeName:   typeName,
+		qos:        qos,
+		isKeyed:    isKeyed,
+		keyExtract: keyExtract,
 	}
 
 	c.subsMu.Lock()
@@ -625,7 +664,7 @@ func (c *Client) restoreState(conn *Conn) error {
 			w.mu.Unlock()
 			continue
 		}
-		newID, err := conn.createWriter(ctx, w.topicName, w.typeName, w.qos, w.isKeyed, w.keys)
+		newID, err := conn.createWriter(ctx, w.topicName, w.typeName, w.qos, w.isKeyed, nil)
 		if err != nil {
 			w.mu.Unlock()
 			return fmt.Errorf("re-create writer for topic %q: %w", w.topicName, err)

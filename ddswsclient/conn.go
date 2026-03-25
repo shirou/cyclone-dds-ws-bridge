@@ -181,19 +181,21 @@ func (c *Conn) deleteWriter(ctx context.Context, writerID uint32) error {
 	return err
 }
 
-func (c *Conn) publish(writerID uint32, data []byte) error {
+func (c *Conn) publish(writerID uint32, keyBytes, data []byte) error {
 	payload := EncodeWrite(&WritePayload{
 		Mode:     WriteWriterMode,
 		WriterID: writerID,
+		KeyBytes: keyBytes,
 		Data:     data,
 	})
 	return c.send(MsgWrite, c.nextRequestID(), payload)
 }
 
-func (c *Conn) publishDispose(writerID uint32, keyData []byte) error {
+func (c *Conn) publishDispose(writerID uint32, keyBytes, keyData []byte) error {
 	payload := EncodeDispose(&WritePayload{
 		Mode:     WriteWriterMode,
 		WriterID: writerID,
+		KeyBytes: keyBytes,
 		Data:     keyData,
 	})
 	return c.send(MsgDispose, c.nextRequestID(), payload)
@@ -225,10 +227,11 @@ func (c *Conn) writeDispose(ctx context.Context, topicName, typeName string, qos
 	return err
 }
 
-func (c *Conn) publishWriteDispose(writerID uint32, data []byte) error {
+func (c *Conn) publishWriteDispose(writerID uint32, keyBytes, data []byte) error {
 	payload := EncodeWriteDispose(&WritePayload{
 		Mode:     WriteWriterMode,
 		WriterID: writerID,
+		KeyBytes: keyBytes,
 		Data:     data,
 	})
 	return c.send(MsgWriteDispose, c.nextRequestID(), payload)

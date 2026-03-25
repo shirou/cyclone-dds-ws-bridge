@@ -501,6 +501,9 @@ type WritePayload struct {
 	Keys      []KeyField
 	// WriterID mode field
 	WriterID uint32
+	// KeyBytes holds per-sample serialized key bytes (writer-id mode only).
+	// Empty for non-keyed topics.
+	KeyBytes []byte
 	// Data/KeyData (remaining bytes)
 	Data []byte
 }
@@ -592,6 +595,10 @@ func encodeWriteMode(p *WritePayload) []byte {
 		var id [4]byte
 		binary.LittleEndian.PutUint32(id[:], p.WriterID)
 		buf = append(buf, id[:]...)
+		var kl [4]byte
+		binary.LittleEndian.PutUint32(kl[:], uint32(len(p.KeyBytes)))
+		buf = append(buf, kl[:]...)
+		buf = append(buf, p.KeyBytes...)
 		buf = append(buf, p.Data...)
 	}
 	return buf
@@ -797,15 +804,27 @@ func decodeWriteMode(data []byte) (*WritePayload, error) {
 			Data:      remaining,
 		}, nil
 	case WriteWriterMode:
-		if len(rest) < 4 {
-			return nil, fmt.Errorf("write writer-id mode: need 4 bytes for writer_id, got %d", len(rest))
+		if len(rest) < 8 {
+			return nil, fmt.Errorf("write writer-id mode: need 8 bytes for writer_id+key_len, got %d", len(rest))
 		}
 		writerID := binary.LittleEndian.Uint32(rest)
-		remaining := make([]byte, len(rest)-4)
-		copy(remaining, rest[4:])
+		keyLen := binary.LittleEndian.Uint32(rest[4:])
+		pos := 8
+		if uint32(len(rest)-pos) < keyLen {
+			return nil, fmt.Errorf("write writer-id mode: need %d key bytes, got %d", keyLen, len(rest)-pos)
+		}
+		var keyBytes []byte
+		if keyLen > 0 {
+			keyBytes = make([]byte, keyLen)
+			copy(keyBytes, rest[pos:pos+int(keyLen)])
+		}
+		pos += int(keyLen)
+		remaining := make([]byte, len(rest)-pos)
+		copy(remaining, rest[pos:])
 		return &WritePayload{
 			Mode:     WriteWriterMode,
 			WriterID: writerID,
+			KeyBytes: keyBytes,
 			Data:     remaining,
 		}, nil
 	default:

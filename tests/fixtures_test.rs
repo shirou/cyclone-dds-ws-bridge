@@ -69,6 +69,7 @@ fn write_topic_mode_fixture() -> Vec<u8> {
 fn write_writer_id_mode_fixture() -> Vec<u8> {
     let payload = WritePayload(WriteMode::WriterId {
         writer_id: 42,
+        key_bytes: vec![],
         data: vec![0x00, 0x01, 0x00, 0x00, 0x2A, 0x00, 0x00, 0x00],
     });
     let bytes = serialize_write(&payload);
@@ -78,6 +79,7 @@ fn write_writer_id_mode_fixture() -> Vec<u8> {
 fn dispose_fixture() -> Vec<u8> {
     let payload = DisposePayload(WriteMode::WriterId {
         writer_id: 42,
+        key_bytes: vec![],
         data: vec![0x2A, 0x00, 0x00, 0x00],
     });
     let bytes = serialize_dispose(&payload);

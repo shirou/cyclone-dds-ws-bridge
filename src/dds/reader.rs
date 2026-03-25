@@ -83,6 +83,8 @@ impl DdsReader {
             let mut sample = SampleWrapper {
                 data: ptr::null(),
                 len: 0,
+                key_data: ptr::null(),
+                key_len: 0,
             };
             let mut sample_ptrs: [*mut c_void; 1] =
                 [&mut sample as *mut SampleWrapper as *mut c_void];

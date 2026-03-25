@@ -266,6 +266,7 @@ pub enum WriteMode {
     },
     WriterId {
         writer_id: u32,
+        key_bytes: Vec<u8>,
         data: Vec<u8>,
     },
 }
@@ -393,15 +394,28 @@ pub fn parse_write_mode(payload: &[u8]) -> Result<WriteMode, ProtocolError> {
             })
         }
         0x01 => {
-            if buf.remaining() < 4 {
+            if buf.remaining() < 8 {
                 return Err(ProtocolError::Truncated {
-                    expected: 4,
+                    expected: 8,
                     got: buf.remaining(),
                 });
             }
             let writer_id = buf.get_u32_le();
+            let key_len = buf.get_u32_le() as usize;
+            if buf.remaining() < key_len {
+                return Err(ProtocolError::Truncated {
+                    expected: key_len,
+                    got: buf.remaining(),
+                });
+            }
+            let key_bytes = buf[..key_len].to_vec();
+            buf.advance(key_len);
             let data = buf.to_vec();
-            Ok(WriteMode::WriterId { writer_id, data })
+            Ok(WriteMode::WriterId {
+                writer_id,
+                key_bytes,
+                data,
+            })
         }
         _ => Err(ProtocolError::InvalidWriteMode(mode)),
     }
@@ -547,9 +561,15 @@ pub fn serialize_write_mode(mode: &WriteMode) -> BytesMut {
             serialize_key_descriptors(key_descriptors, &mut buf);
             buf.put_slice(data);
         }
-        WriteMode::WriterId { writer_id, data } => {
+        WriteMode::WriterId {
+            writer_id,
+            key_bytes,
+            data,
+        } => {
             buf.put_u8(0x01);
             buf.put_u32_le(*writer_id);
+            buf.put_u32_le(key_bytes.len() as u32);
+            buf.put_slice(key_bytes);
             buf.put_slice(data);
         }
     }
@@ -887,6 +907,7 @@ mod tests {
     fn test_write_writer_id_mode_round_trip() {
         let payload = WritePayload(WriteMode::WriterId {
             writer_id: 42,
+            key_bytes: vec![],
             data: vec![0xDE, 0xAD],
         });
         let bytes = serialize_write(&payload);
@@ -898,6 +919,7 @@ mod tests {
     fn test_dispose_round_trip() {
         let payload = DisposePayload(WriteMode::WriterId {
             writer_id: 7,
+            key_bytes: vec![],
             data: vec![0xFF],
         });
         let bytes = serialize_dispose(&payload);

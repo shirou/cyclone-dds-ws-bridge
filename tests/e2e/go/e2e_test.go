@@ -58,7 +58,7 @@ func TestPubSubLoopback(t *testing.T) {
 	topic := "E2ELoopback"
 	typeName := "test::Opaque"
 
-	sub, err := client.Subscribe(ctx, topic, typeName, nil, nil)
+	sub, err := client.Subscribe(ctx, topic, typeName, nil, false, nil)
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestCreateWriterPublish(t *testing.T) {
 	topic := "E2EWriterMode"
 	typeName := "test::Opaque"
 
-	sub, err := client.Subscribe(ctx, topic, typeName, nil, nil)
+	sub, err := client.Subscribe(ctx, topic, typeName, nil, false, nil)
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestDisposeLoopback(t *testing.T) {
 	topic := "E2EDispose"
 	typeName := "test::Opaque"
 
-	sub, err := client.Subscribe(ctx, topic, typeName, nil, nil)
+	sub, err := client.Subscribe(ctx, topic, typeName, nil, false, nil)
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestMultipleClients(t *testing.T) {
 		clients = append(clients, c)
 		defer c.Close()
 
-		sub, err := c.Subscribe(ctx, topic, typeName, nil, nil)
+		sub, err := c.Subscribe(ctx, topic, typeName, nil, false, nil)
 		if err != nil {
 			t.Fatalf("Subscribe[%d]: %v", i, err)
 		}
@@ -257,7 +257,7 @@ func TestUnsubscribe(t *testing.T) {
 	// Client 1: will unsubscribe
 	client1 := connectWithRetry(t, ctx)
 	defer client1.Close()
-	sub1, err := client1.Subscribe(ctx, topic, typeName, nil, nil)
+	sub1, err := client1.Subscribe(ctx, topic, typeName, nil, false, nil)
 	if err != nil {
 		t.Fatalf("Subscribe client1: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestUnsubscribe(t *testing.T) {
 	// Client 2: stays subscribed (control group)
 	client2 := connectWithRetry(t, ctx)
 	defer client2.Close()
-	sub2, err := client2.Subscribe(ctx, topic, typeName, nil, nil)
+	sub2, err := client2.Subscribe(ctx, topic, typeName, nil, false, nil)
 	if err != nil {
 		t.Fatalf("Subscribe client2: %v", err)
 	}

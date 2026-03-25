@@ -308,10 +308,14 @@ fn do_write_op(
                 op = ?op,
                 "sending message"
             );
-            execute_write_op(writer, op, data, request_id)?;
+            execute_write_op(writer, op, data, &[], request_id)?;
             Ok(build_message(MsgType::Ok, request_id, &[]))
         }
-        protocol::WriteMode::WriterId { writer_id, data } => {
+        protocol::WriteMode::WriterId {
+            writer_id,
+            key_bytes,
+            data,
+        } => {
             let writer = inner.writers.get(*writer_id, session_id).map_err(|e| {
                 let code = match &e {
                     crate::dds::DdsError::WriterNotFound(_) => ErrorCode::WriterNotFound,
@@ -325,10 +329,11 @@ fn do_write_op(
                 session_id,
                 writer_id,
                 data_len = data.len(),
+                key_bytes_len = key_bytes.len(),
                 op = ?op,
                 "sending message"
             );
-            execute_write_op(writer, op, data, request_id)?;
+            execute_write_op(writer, op, data, key_bytes, request_id)?;
             Ok(build_message(MsgType::Ok, request_id, &[]))
         }
     }
@@ -338,12 +343,13 @@ fn execute_write_op(
     writer: &DdsWriter,
     op: WriteOp,
     data: &[u8],
+    key_bytes: &[u8],
     request_id: u32,
 ) -> Result<(), Vec<u8>> {
     let result = match op {
-        WriteOp::Write => writer.write(data),
-        WriteOp::Dispose => writer.dispose(data),
-        WriteOp::WriteDispose => writer.write_dispose(data),
+        WriteOp::Write => writer.write(data, key_bytes),
+        WriteOp::Dispose => writer.dispose(data, key_bytes),
+        WriteOp::WriteDispose => writer.write_dispose(data, key_bytes),
     };
     result.map_err(|e| make_error_response(request_id, ErrorCode::DdsError, &e.to_string()))
 }
@@ -423,7 +429,7 @@ fn resp_with_dispose_notification(
             data,
             ..
         } => (topic_name.as_str(), type_name.as_str(), data.as_slice()),
-        protocol::WriteMode::WriterId { writer_id, data } => {
+        protocol::WriteMode::WriterId { writer_id, data, .. } => {
             if let Some(writer) = inner.writers.find_by_id(*writer_id) {
                 (
                     writer.topic.topic_name.as_str(),

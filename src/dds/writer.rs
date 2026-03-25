@@ -50,10 +50,10 @@ impl DdsWriter {
         })
     }
 
-    /// Write opaque data.
-    pub fn write(&self, data: &[u8]) -> Result<(), DdsError> {
-        // Safety: SampleWrapper borrows `data` which lives for the duration of dds_write.
-        let sample = unsafe { SampleWrapper::from_bytes(data) };
+    /// Write opaque data with optional per-sample key bytes.
+    pub fn write(&self, data: &[u8], key_bytes: &[u8]) -> Result<(), DdsError> {
+        // Safety: SampleWrapper borrows `data` and `key_bytes` which live for the duration of dds_write.
+        let sample = unsafe { SampleWrapper::from_bytes(data, key_bytes) };
         let rc =
             unsafe { dds_write(self.handle, &sample as *const SampleWrapper as *const c_void) };
         if rc < 0 {
@@ -62,9 +62,9 @@ impl DdsWriter {
         Ok(())
     }
 
-    /// Dispose an instance (key data only).
-    pub fn dispose(&self, key_data: &[u8]) -> Result<(), DdsError> {
-        let sample = unsafe { SampleWrapper::from_bytes(key_data) };
+    /// Dispose an instance (key data only) with optional per-sample key bytes.
+    pub fn dispose(&self, key_data: &[u8], key_bytes: &[u8]) -> Result<(), DdsError> {
+        let sample = unsafe { SampleWrapper::from_bytes(key_data, key_bytes) };
         let rc =
             unsafe { dds_dispose(self.handle, &sample as *const SampleWrapper as *const c_void) };
         if rc < 0 {
@@ -73,9 +73,9 @@ impl DdsWriter {
         Ok(())
     }
 
-    /// Write and dispose in one operation.
-    pub fn write_dispose(&self, data: &[u8]) -> Result<(), DdsError> {
-        let sample = unsafe { SampleWrapper::from_bytes(data) };
+    /// Write and dispose in one operation with optional per-sample key bytes.
+    pub fn write_dispose(&self, data: &[u8], key_bytes: &[u8]) -> Result<(), DdsError> {
+        let sample = unsafe { SampleWrapper::from_bytes(data, key_bytes) };
         let rc = unsafe {
             dds_writedispose(self.handle, &sample as *const SampleWrapper as *const c_void)
         };

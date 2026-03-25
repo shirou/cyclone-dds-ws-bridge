@@ -159,6 +159,7 @@ fn test_error_response_all_codes() {
 fn test_dispose_writer_id_mode_full_message() {
     let dispose = DisposePayload(WriteMode::WriterId {
         writer_id: 55,
+        key_bytes: vec![],
         data: vec![0x00, 0x01, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00],
     });
     let bytes = serialize_dispose(&dispose);

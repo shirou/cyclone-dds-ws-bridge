@@ -243,6 +243,7 @@ impl WsClient {
     async fn write_writer_id(&mut self, writer_id: u32, data: &[u8]) {
         let payload = serialize_write(&WritePayload(WriteMode::WriterId {
             writer_id,
+            key_bytes: vec![],
             data: data.to_vec(),
         }));
         let rid = self.send_msg(MsgType::Write, &payload).await;
@@ -362,6 +363,7 @@ async fn test_writer_ownership_violation() {
     // Client B tries to use client A's writer
     let payload = serialize_write(&WritePayload(WriteMode::WriterId {
         writer_id,
+        key_bytes: vec![],
         data: vec![0x00, 0x01, 0x00, 0x00, 0xFF],
     }));
     let rid = client_b.send_msg(MsgType::Write, &payload).await;
