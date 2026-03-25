@@ -22,16 +22,15 @@ func bridgeAddr() string {
 func connectWithRetry(t *testing.T, ctx context.Context) *ddswsclient.Client {
 	t.Helper()
 	addr := bridgeAddr()
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
-		client, err := ddswsclient.NewClient(ctx, addr, ddswsclient.WithMaxReconnects(0))
-		if err == nil {
-			return client
-		}
-		time.Sleep(500 * time.Millisecond)
+	client, err := ddswsclient.NewClient(ctx, addr,
+		ddswsclient.WithConnectRetry(true),
+		ddswsclient.WithReconnectInterval(500*time.Millisecond),
+		ddswsclient.WithMaxReconnects(-1),
+	)
+	if err != nil {
+		t.Fatalf("failed to connect to bridge at %s: %v", addr, err)
 	}
-	t.Fatalf("failed to connect to bridge at %s within 30s", addr)
-	return nil
+	return client
 }
 
 // TestPingPong verifies basic connectivity.

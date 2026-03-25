@@ -15,6 +15,7 @@ type ClientOption func(*clientConfig)
 type clientConfig struct {
 	reconnectInterval time.Duration
 	maxReconnects     int // -1 = infinite
+	connectRetry      bool
 }
 
 // WithReconnectInterval sets the delay between reconnect attempts (default: 1s).
@@ -26,6 +27,14 @@ func WithReconnectInterval(d time.Duration) ClientOption {
 // -1 means infinite (default). 0 disables auto-reconnect.
 func WithMaxReconnects(n int) ClientOption {
 	return func(c *clientConfig) { c.maxReconnects = n }
+}
+
+// WithConnectRetry enables retrying the initial connection in NewClient.
+// When enabled, NewClient retries at WithReconnectInterval intervals, up to
+// WithMaxReconnects attempts, until the connection succeeds or the context
+// is cancelled. By default the initial connection is attempted only once.
+func WithConnectRetry(enabled bool) ClientOption {
+	return func(c *clientConfig) { c.connectRetry = enabled }
 }
 
 // Subscription represents an active topic subscription.
@@ -212,6 +221,7 @@ type Client struct {
 
 // NewClient connects to the bridge and returns a Client with auto-reconnect.
 // The initial connection is synchronous -- returns an error if it fails.
+// Use WithConnectRetry to retry the initial connection on failure.
 func NewClient(ctx context.Context, addr string, opts ...ClientOption) (*Client, error) {
 	cfg := clientConfig{
 		reconnectInterval: time.Second,
@@ -230,7 +240,13 @@ func NewClient(ctx context.Context, addr string, opts ...ClientOption) (*Client,
 
 	conn, err := dial(ctx, addr, c.deliverData)
 	if err != nil {
-		return nil, err
+		if !cfg.connectRetry {
+			return nil, err
+		}
+		conn, err = c.connectWithRetry(ctx, err)
+		if err != nil {
+			return nil, err
+		}
 	}
 	c.setErrorHandler(conn)
 	c.conn = conn
@@ -238,6 +254,35 @@ func NewClient(ctx context.Context, addr string, opts ...ClientOption) (*Client,
 	go c.watchLoop()
 
 	return c, nil
+}
+
+// connectWithRetry retries the initial dial until success, context cancellation,
+// or maxReconnects is exhausted. lastErr is the error from the first attempt.
+func (c *Client) connectWithRetry(ctx context.Context, lastErr error) (*Conn, error) {
+	attempts := 0
+	for {
+		slog.Debug("bridge not ready, retrying", "attempt", attempts+1, "error", lastErr)
+
+		timer := time.NewTimer(c.cfg.reconnectInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, fmt.Errorf("connect retry failed after %d attempts: last error: %w, %w", attempts, lastErr, ctx.Err())
+		case <-timer.C:
+		}
+
+		attempts++
+		if c.cfg.maxReconnects >= 0 && attempts > c.cfg.maxReconnects {
+			return nil, fmt.Errorf("connect retry exhausted %d attempts: %w", attempts, lastErr)
+		}
+
+		conn, err := dial(ctx, c.addr, c.deliverData)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return conn, nil
+	}
 }
 
 // OnConnect registers a handler called on each successful (re)connection.
