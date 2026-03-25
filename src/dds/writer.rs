@@ -206,6 +206,7 @@ mod tests {
             handle: 0, // dummy
             topic_name: name.to_string(),
             type_name: type_name.to_string(),
+            is_keyed: false,
             key_descriptors: KeyDescriptors { keys: vec![] },
         }
     }

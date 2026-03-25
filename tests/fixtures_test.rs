@@ -32,6 +32,7 @@ fn subscribe_fixture() -> Vec<u8> {
                 QosPolicy::Durability { kind: 1 },
             ],
         },
+        is_keyed: true,
         key_descriptors: KeyDescriptors {
             keys: vec![KeyField {
                 offset: 4,
@@ -93,6 +94,7 @@ fn create_writer_fixture() -> Vec<u8> {
                 max_blocking_time_ms: 100,
             }],
         },
+        is_keyed: true,
         key_descriptors: KeyDescriptors {
             keys: vec![KeyField {
                 offset: 4,

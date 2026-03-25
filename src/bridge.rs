@@ -122,7 +122,7 @@ async fn handle_subscribe(
     let mut inner = bridge.lock().await;
     let topic = inner
         .participant
-        .get_or_create_topic(&sub.topic_name, &sub.type_name, &sub.key_descriptors)
+        .get_or_create_topic(&sub.topic_name, &sub.type_name, sub.is_keyed, &sub.key_descriptors)
         .map_err(|e| make_error_response(request_id, ErrorCode::DdsError, &e.to_string()))?;
 
     let (_qos_handle, qos_ptr) = make_qos(&sub.qos);
@@ -275,7 +275,7 @@ fn do_write_op(
                 // Create topic + writer
                 let topic = inner
                     .participant
-                    .get_or_create_topic(topic_name, type_name, key_descriptors)
+                    .get_or_create_topic(topic_name, type_name, !key_descriptors.keys.is_empty(), key_descriptors)
                     .map_err(|e| {
                         make_error_response(request_id, ErrorCode::DdsError, &e.to_string())
                     })?;
@@ -360,7 +360,7 @@ async fn handle_create_writer(
     let mut inner = bridge.lock().await;
     let topic = inner
         .participant
-        .get_or_create_topic(&cw.topic_name, &cw.type_name, &cw.key_descriptors)
+        .get_or_create_topic(&cw.topic_name, &cw.type_name, cw.is_keyed, &cw.key_descriptors)
         .map_err(|e| make_error_response(request_id, ErrorCode::DdsError, &e.to_string()))?;
 
     let (_qos_handle, qos_ptr) = make_qos(&cw.qos);

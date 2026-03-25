@@ -22,6 +22,7 @@ fn round_trip_message(msg_type: MsgType, request_id: u32, payload: &[u8]) -> (He
 #[test]
 fn test_subscribe_full_message_round_trip() {
     let sub = SubscribePayload {
+        is_keyed: true,
         topic_name: "SensorData".into(),
         type_name: "sensor::SensorData".into(),
         qos: QosSet {
@@ -101,6 +102,7 @@ fn test_write_then_data_correlation() {
 fn test_create_writer_ok_response_with_writer_id() {
     // Client sends CREATE_WRITER
     let cw = CreateWriterPayload {
+        is_keyed: true,
         topic_name: "Motor".into(),
         type_name: "ctrl::Motor".into(),
         qos: QosSet {
@@ -293,6 +295,7 @@ fn test_large_payload_within_limits() {
 #[test]
 fn test_qos_all_policies_in_subscribe() {
     let sub = SubscribePayload {
+        is_keyed: true,
         topic_name: "AllQoS".into(),
         type_name: "test::AllQoS".into(),
         qos: QosSet {
@@ -370,6 +373,7 @@ fn test_unsubscribe_delete_writer_sequence() {
 #[test]
 fn test_empty_strings_in_messages() {
     let sub = SubscribePayload {
+        is_keyed: true,
         topic_name: "".into(),
         type_name: "".into(),
         qos: QosSet::default(),
@@ -384,6 +388,7 @@ fn test_empty_strings_in_messages() {
 #[test]
 fn test_unicode_strings() {
     let sub = SubscribePayload {
+        is_keyed: true,
         topic_name: "sensor/temperature/\u{00B0}C".into(),
         type_name: "test::\u{30C7}\u{30FC}\u{30BF}".into(), // katakana
         qos: QosSet::default(),

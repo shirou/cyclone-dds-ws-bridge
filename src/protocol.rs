@@ -101,6 +101,16 @@ pub fn serialize_header(header: &Header) -> [u8; HEADER_SIZE] {
 
 // --- String encoding helpers ---
 
+pub fn read_bool(buf: &mut &[u8]) -> Result<bool, ProtocolError> {
+    if buf.remaining() < 1 {
+        return Err(ProtocolError::Truncated {
+            expected: 1,
+            got: 0,
+        });
+    }
+    Ok(buf.get_u8() != 0)
+}
+
 pub fn read_string(buf: &mut &[u8]) -> Result<String, ProtocolError> {
     if buf.remaining() < 4 {
         return Err(ProtocolError::Truncated {
@@ -221,6 +231,7 @@ pub struct SubscribePayload {
     pub topic_name: String,
     pub type_name: String,
     pub qos: QosSet,
+    pub is_keyed: bool,
     pub key_descriptors: KeyDescriptors,
 }
 
@@ -235,6 +246,7 @@ pub struct CreateWriterPayload {
     pub topic_name: String,
     pub type_name: String,
     pub qos: QosSet,
+    pub is_keyed: bool,
     pub key_descriptors: KeyDescriptors,
 }
 
@@ -333,12 +345,14 @@ pub fn parse_subscribe(payload: &[u8]) -> Result<SubscribePayload, ProtocolError
     let topic_name = read_string(&mut buf)?;
     let type_name = read_string(&mut buf)?;
     let qos = crate::qos::parse_qos(&mut buf)?;
+    let is_keyed = read_bool(&mut buf)?;
     let key_descriptors = parse_key_descriptors(&mut buf)?;
     check_no_trailing(buf)?;
     Ok(SubscribePayload {
         topic_name,
         type_name,
         qos,
+        is_keyed,
         key_descriptors,
     })
 }
@@ -410,12 +424,14 @@ pub fn parse_create_writer(payload: &[u8]) -> Result<CreateWriterPayload, Protoc
     let topic_name = read_string(&mut buf)?;
     let type_name = read_string(&mut buf)?;
     let qos = crate::qos::parse_qos(&mut buf)?;
+    let is_keyed = read_bool(&mut buf)?;
     let key_descriptors = parse_key_descriptors(&mut buf)?;
     check_no_trailing(buf)?;
     Ok(CreateWriterPayload {
         topic_name,
         type_name,
         qos,
+        is_keyed,
         key_descriptors,
     })
 }
@@ -502,6 +518,7 @@ pub fn serialize_subscribe(p: &SubscribePayload) -> BytesMut {
     write_string(&mut buf, &p.topic_name);
     write_string(&mut buf, &p.type_name);
     crate::qos::serialize_qos(&p.qos, &mut buf);
+    buf.put_u8(if p.is_keyed { 1 } else { 0 });
     serialize_key_descriptors(&p.key_descriptors, &mut buf);
     buf
 }
@@ -556,6 +573,7 @@ pub fn serialize_create_writer(p: &CreateWriterPayload) -> BytesMut {
     write_string(&mut buf, &p.topic_name);
     write_string(&mut buf, &p.type_name);
     crate::qos::serialize_qos(&p.qos, &mut buf);
+    buf.put_u8(if p.is_keyed { 1 } else { 0 });
     serialize_key_descriptors(&p.key_descriptors, &mut buf);
     buf
 }
@@ -832,6 +850,7 @@ mod tests {
             topic_name: "test_topic".into(),
             type_name: "TestType".into(),
             qos: QosSet::default(),
+            is_keyed: true,
             key_descriptors: KeyDescriptors { keys: vec![] },
         };
         let bytes = serialize_subscribe(&payload);
@@ -892,6 +911,7 @@ mod tests {
             topic_name: "my_topic".into(),
             type_name: "MyType".into(),
             qos: QosSet::default(),
+            is_keyed: true,
             key_descriptors: KeyDescriptors {
                 keys: vec![KeyField {
                     offset: 4,
@@ -1048,6 +1068,7 @@ mod tests {
             topic_name: "t".into(),
             type_name: "T".into(),
             qos: QosSet::default(),
+            is_keyed: false,
             key_descriptors: KeyDescriptors { keys: vec![] },
         });
         bytes.put_u8(0xFF);

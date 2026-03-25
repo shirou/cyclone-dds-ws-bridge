@@ -288,6 +288,20 @@ func BuildMessage(msgType MsgType, requestID uint32, payload []byte) []byte {
 
 // --- String encoding: 4-byte LE length + UTF-8 ---
 
+func appendBool(dst []byte, v bool) []byte {
+	if v {
+		return append(dst, 1)
+	}
+	return append(dst, 0)
+}
+
+func decodeBool(data []byte) (bool, int, error) {
+	if len(data) < 1 {
+		return false, 0, errors.New("bool: truncated")
+	}
+	return data[0] != 0, 1, nil
+}
+
 func appendString(dst []byte, s string) []byte {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], uint32(len(s)))
@@ -445,6 +459,7 @@ type SubscribePayload struct {
 	TopicName string
 	TypeName  string
 	Qos       []QosPolicy
+	IsKeyed   bool
 	Keys      []KeyField
 }
 
@@ -459,6 +474,7 @@ type CreateWriterPayload struct {
 	TopicName string
 	TypeName  string
 	Qos       []QosPolicy
+	IsKeyed   bool
 	Keys      []KeyField
 }
 
@@ -522,6 +538,7 @@ func EncodeSubscribe(p *SubscribePayload) []byte {
 	buf = appendString(buf, p.TopicName)
 	buf = appendString(buf, p.TypeName)
 	buf = append(buf, encodeQos(p.Qos)...)
+	buf = appendBool(buf, p.IsKeyed)
 	buf = append(buf, encodeKeyDescriptors(p.Keys)...)
 	return buf
 }
@@ -538,6 +555,7 @@ func EncodeCreateWriter(p *CreateWriterPayload) []byte {
 	buf = appendString(buf, p.TopicName)
 	buf = appendString(buf, p.TypeName)
 	buf = append(buf, encodeQos(p.Qos)...)
+	buf = appendBool(buf, p.IsKeyed)
 	buf = append(buf, encodeKeyDescriptors(p.Keys)...)
 	return buf
 }
@@ -633,6 +651,11 @@ func DecodeSubscribe(data []byte) (*SubscribePayload, error) {
 		return nil, err
 	}
 	pos += n
+	isKeyed, n, err := decodeBool(data[pos:])
+	if err != nil {
+		return nil, err
+	}
+	pos += n
 	keys, n, err := decodeKeyDescriptors(data[pos:])
 	if err != nil {
 		return nil, err
@@ -645,6 +668,7 @@ func DecodeSubscribe(data []byte) (*SubscribePayload, error) {
 		TopicName: topicName,
 		TypeName:  typeName,
 		Qos:       qos,
+		IsKeyed:   isKeyed,
 		Keys:      keys,
 	}, nil
 }
@@ -687,6 +711,11 @@ func DecodeCreateWriter(data []byte) (*CreateWriterPayload, error) {
 		return nil, err
 	}
 	pos += n
+	isKeyed, n, err := decodeBool(data[pos:])
+	if err != nil {
+		return nil, err
+	}
+	pos += n
 	keys, n, err := decodeKeyDescriptors(data[pos:])
 	if err != nil {
 		return nil, err
@@ -699,6 +728,7 @@ func DecodeCreateWriter(data []byte) (*CreateWriterPayload, error) {
 		TopicName: topicName,
 		TypeName:  typeName,
 		Qos:       qos,
+		IsKeyed:   isKeyed,
 		Keys:      keys,
 	}, nil
 }

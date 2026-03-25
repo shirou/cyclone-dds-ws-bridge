@@ -44,6 +44,7 @@ type Subscription struct {
 	topicName string
 	typeName  string
 	qos       []QosPolicy
+	isKeyed   bool
 	keys      []KeyField
 }
 
@@ -77,6 +78,7 @@ type Writer struct {
 	topicName string
 	typeName  string
 	qos       []QosPolicy
+	isKeyed   bool
 	keys      []KeyField
 }
 
@@ -270,7 +272,7 @@ func (c *Client) setErrorHandler(conn *Conn) {
 // Subscribe sends a SUBSCRIBE request and returns a Subscription.
 // The channel survives reconnections -- data resumes after reconnect.
 // Messages during the reconnect gap are lost (the bridge does not buffer).
-func (c *Client) Subscribe(ctx context.Context, topicName, typeName string, qos []QosPolicy, keys []KeyField) (*Subscription, error) {
+func (c *Client) Subscribe(ctx context.Context, topicName, typeName string, qos []QosPolicy, isKeyed bool, keys []KeyField) (*Subscription, error) {
 	c.connMu.RLock()
 	conn := c.conn
 	c.connMu.RUnlock()
@@ -278,7 +280,7 @@ func (c *Client) Subscribe(ctx context.Context, topicName, typeName string, qos 
 		return nil, ErrNotConnected
 	}
 
-	if err := conn.subscribe(ctx, topicName, typeName, qos, keys); err != nil {
+	if err := conn.subscribe(ctx, topicName, typeName, qos, isKeyed, keys); err != nil {
 		return nil, err
 	}
 
@@ -290,6 +292,7 @@ func (c *Client) Subscribe(ctx context.Context, topicName, typeName string, qos 
 		topicName: topicName,
 		typeName:  typeName,
 		qos:       qos,
+		isKeyed:   isKeyed,
 		keys:      keys,
 	}
 
@@ -301,7 +304,7 @@ func (c *Client) Subscribe(ctx context.Context, topicName, typeName string, qos 
 }
 
 // CreateWriter creates a DDS DataWriter that survives reconnections.
-func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, qos []QosPolicy, keys []KeyField) (*Writer, error) {
+func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, qos []QosPolicy, isKeyed bool, keys []KeyField) (*Writer, error) {
 	c.connMu.RLock()
 	conn := c.conn
 	c.connMu.RUnlock()
@@ -309,7 +312,7 @@ func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, q
 		return nil, ErrNotConnected
 	}
 
-	writerID, err := conn.createWriter(ctx, topicName, typeName, qos, keys)
+	writerID, err := conn.createWriter(ctx, topicName, typeName, qos, isKeyed, keys)
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +323,7 @@ func (c *Client) CreateWriter(ctx context.Context, topicName, typeName string, q
 		topicName: topicName,
 		typeName:  typeName,
 		qos:       qos,
+		isKeyed:   isKeyed,
 		keys:      keys,
 	}
 
@@ -576,7 +580,7 @@ func (c *Client) restoreState(conn *Conn) error {
 			w.mu.Unlock()
 			continue
 		}
-		newID, err := conn.createWriter(ctx, w.topicName, w.typeName, w.qos, w.keys)
+		newID, err := conn.createWriter(ctx, w.topicName, w.typeName, w.qos, w.isKeyed, w.keys)
 		if err != nil {
 			w.mu.Unlock()
 			return fmt.Errorf("re-create writer for topic %q: %w", w.topicName, err)
@@ -587,7 +591,7 @@ func (c *Client) restoreState(conn *Conn) error {
 
 	// Re-subscribe all subscriptions
 	for _, sub := range subs {
-		if err := conn.subscribe(ctx, sub.topicName, sub.typeName, sub.qos, sub.keys); err != nil {
+		if err := conn.subscribe(ctx, sub.topicName, sub.typeName, sub.qos, sub.isKeyed, sub.keys); err != nil {
 			return fmt.Errorf("re-subscribe topic %q: %w", sub.topicName, err)
 		}
 	}

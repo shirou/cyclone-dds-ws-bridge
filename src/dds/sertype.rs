@@ -527,31 +527,30 @@ static SERTYPE_OPS_WRAPPER: SertypeOpsWrapper = SertypeOpsWrapper(ddsi_sertype_o
 /// `dds_create_topic_sertype`. Do not free it manually after that.
 pub unsafe fn create_opaque_sertype(
     type_name: &str,
+    is_keyed: bool,
     key_descriptors: &KeyDescriptors,
 ) -> *mut ddsi_sertype {
     let c_name = CString::new(type_name).expect("type_name contains NUL");
-    let _has_keys = !key_descriptors.keys.is_empty();
+    let _ = key_descriptors; // reserved for future key extraction support
 
     let ost = Box::new(OpaqueSertype {
         base: std::mem::zeroed(),
         // Always empty: opaque bridge cannot reliably extract keys from CDR.
-        // Key descriptors from the protocol are ignored for sertype purposes.
+        // Key descriptors from the protocol signal keyed/keyless but are not
+        // used for actual key extraction. sd_eqkey returns true (single instance)
+        // and sd_get_keyhash writes a fixed zero hash.
         key_fields: Vec::new(),
     });
     let ost_ptr = Box::into_raw(ost);
 
-    // Always create as keyed topic (topickind_no_key = false).
-    // An opaque bridge cannot reliably extract keys from CDR data, so
-    // key_fields in OpaqueSertype is always empty — sd_eqkey returns true
-    // and sd_get_keyhash writes a fixed zero hash (single instance).
-    // Keyed topics match both WITH_KEY and NO_KEY remote writers/readers
-    // via RTPS, which is the safe default for interop.
+    // RTPS rule: a NO_KEY reader cannot match a WITH_KEY writer (and vice versa).
+    // Use is_keyed from the protocol to set topickind correctly.
     ddsi_sertype_init(
         &mut (*ost_ptr).base,
         c_name.as_ptr(),
         &SERTYPE_OPS_WRAPPER.0,
         &SERDATA_OPS,
-        false, // always keyed
+        !is_keyed,
     );
 
     // Set allowed_data_representation to support both XCDR1 (0) and XCDR2 (2).

@@ -136,11 +136,12 @@ func (c *Conn) sendAndWait(ctx context.Context, msgType MsgType, payload []byte)
 	}
 }
 
-func (c *Conn) subscribe(ctx context.Context, topicName, typeName string, qos []QosPolicy, keys []KeyField) error {
+func (c *Conn) subscribe(ctx context.Context, topicName, typeName string, qos []QosPolicy, isKeyed bool, keys []KeyField) error {
 	payload := EncodeSubscribe(&SubscribePayload{
 		TopicName: topicName,
 		TypeName:  typeName,
 		Qos:       qos,
+		IsKeyed:   isKeyed,
 		Keys:      keys,
 	})
 	_, err := c.sendAndWait(ctx, MsgSubscribe, payload)
@@ -156,11 +157,12 @@ func (c *Conn) unsubscribe(ctx context.Context, topicName, typeName string) erro
 	return err
 }
 
-func (c *Conn) createWriter(ctx context.Context, topicName, typeName string, qos []QosPolicy, keys []KeyField) (uint32, error) {
+func (c *Conn) createWriter(ctx context.Context, topicName, typeName string, qos []QosPolicy, isKeyed bool, keys []KeyField) (uint32, error) {
 	payload := EncodeCreateWriter(&CreateWriterPayload{
 		TopicName: topicName,
 		TypeName:  typeName,
 		Qos:       qos,
+		IsKeyed:   isKeyed,
 		Keys:      keys,
 	})
 	resp, err := c.sendAndWait(ctx, MsgCreateWriter, payload)

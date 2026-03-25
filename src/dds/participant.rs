@@ -13,6 +13,7 @@ pub struct Topic {
     pub handle: dds_entity_t,
     pub topic_name: String,
     pub type_name: String,
+    pub is_keyed: bool,
     pub key_descriptors: KeyDescriptors,
 }
 
@@ -50,15 +51,17 @@ impl DdsParticipant {
         &mut self,
         topic_name: &str,
         type_name: &str,
+        is_keyed: bool,
         key_descriptors: &KeyDescriptors,
     ) -> Result<Topic, DdsError> {
         let key = (topic_name.to_string(), type_name.to_string());
         if let Some(topic) = self.topics.get(&key) {
-            if topic.key_descriptors != *key_descriptors {
+            if topic.is_keyed != is_keyed {
                 tracing::warn!(
                     topic = topic_name,
-                    type_name = type_name,
-                    "topic already exists with different key descriptors; using cached version"
+                    cached_keyed = topic.is_keyed,
+                    requested_keyed = is_keyed,
+                    "topic already exists with different keyed setting; using cached version"
                 );
             }
             return Ok(topic.clone());
@@ -68,7 +71,7 @@ impl DdsParticipant {
             CString::new(topic_name).map_err(|_| DdsError::InvalidName(topic_name.into()))?;
 
         let handle = unsafe {
-            let mut sertype_ptr = create_opaque_sertype(type_name, key_descriptors);
+            let mut sertype_ptr = create_opaque_sertype(type_name, is_keyed, key_descriptors);
             dds_create_topic_sertype(
                 self.handle,
                 c_topic_name.as_ptr(),
@@ -86,6 +89,7 @@ impl DdsParticipant {
             handle,
             topic_name: topic_name.to_string(),
             type_name: type_name.to_string(),
+            is_keyed,
             key_descriptors: key_descriptors.clone(),
         };
         self.topics.insert(key, topic.clone());

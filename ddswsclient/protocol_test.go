@@ -397,7 +397,8 @@ func TestFixtureSubscribe(t *testing.T) {
 			QosReliabilityPolicy(ReliabilityReliable, 100),
 			QosDurabilityPolicy(DurabilityTransientLocal),
 		},
-		Keys: []KeyField{{Offset: 4, Size: 4, TypeHint: KeyInt32}},
+		IsKeyed: true,
+		Keys:    []KeyField{{Offset: 4, Size: 4, TypeHint: KeyInt32}},
 	}
 	goMsg := BuildMessage(MsgSubscribe, 1, EncodeSubscribe(p))
 	if !bytes.Equal(goMsg, data) {
@@ -478,6 +479,7 @@ func TestFixtureCreateWriter(t *testing.T) {
 		TopicName: "SensorData",
 		TypeName:  "sensor::SensorData",
 		Qos:       []QosPolicy{QosReliabilityPolicy(ReliabilityReliable, 100)},
+		IsKeyed:   true,
 		Keys:      []KeyField{{Offset: 4, Size: 4, TypeHint: KeyInt32}},
 	}))
 	if !bytes.Equal(goMsg, data) {

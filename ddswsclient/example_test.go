@@ -37,6 +37,7 @@ func Example() {
 		[]ddswsclient.QosPolicy{
 			ddswsclient.QosReliabilityPolicy(ddswsclient.ReliabilityReliable, 100),
 		},
+		true, // isKeyed
 		[]ddswsclient.KeyField{
 			{Offset: 4, Size: 4, TypeHint: ddswsclient.KeyInt32},
 		},
@@ -52,6 +53,7 @@ func Example() {
 		[]ddswsclient.QosPolicy{
 			ddswsclient.QosReliabilityPolicy(ddswsclient.ReliabilityReliable, 100),
 		},
+		true, // isKeyed
 		[]ddswsclient.KeyField{
 			{Offset: 4, Size: 4, TypeHint: ddswsclient.KeyInt32},
 		},

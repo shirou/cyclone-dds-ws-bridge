@@ -172,7 +172,8 @@ impl WsClient {
 
     async fn subscribe(&mut self, topic: &str, type_name: &str) {
         let payload = serialize_subscribe(&SubscribePayload {
-            topic_name: topic.into(),
+            is_keyed: true,
+        topic_name: topic.into(),
             type_name: type_name.into(),
             qos: QosSet::default(),
             key_descriptors: KeyDescriptors { keys: vec![] },
@@ -220,7 +221,8 @@ impl WsClient {
 
     async fn create_writer(&mut self, topic: &str, type_name: &str) -> u32 {
         let payload = serialize_create_writer(&CreateWriterPayload {
-            topic_name: topic.into(),
+            is_keyed: true,
+        topic_name: topic.into(),
             type_name: type_name.into(),
             qos: QosSet::default(),
             key_descriptors: KeyDescriptors { keys: vec![] },

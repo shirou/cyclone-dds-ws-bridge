@@ -32,9 +32,17 @@ COPY tests/ tests/
 
 RUN cargo build --release 2>&1
 
-# Run all tests (loopback config required for DDS integration tests in Docker)
-RUN CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>' \
-    cargo test --release -- --test-threads=1 2>&1
+# Build tests (but don't run yet -- needed for fixture generation)
+RUN cargo test --release --no-run 2>&1
+
+# Generate fixtures stage (used by `make fixtures`)
+FROM builder AS generate-fixtures
+ENV CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>'
+RUN cargo test --release -- --ignored generate_fixtures --test-threads=1 2>&1
+
+# Test stage
+FROM generate-fixtures AS test
+RUN cargo test --release -- --test-threads=1 2>&1
 
 # Runtime stage
 FROM debian:bookworm-slim AS runtime
@@ -44,8 +52,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/lib/ /usr/local/lib/
-COPY --from=builder /app/target/release/cyclone-dds-ws-bridge /usr/local/bin/cyclone-dds-ws-bridge
+COPY --from=test /usr/local/lib/ /usr/local/lib/
+COPY --from=test /app/target/release/cyclone-dds-ws-bridge /usr/local/bin/cyclone-dds-ws-bridge
 
 ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/x86_64-linux-gnu
 
