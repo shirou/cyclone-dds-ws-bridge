@@ -1,0 +1,10 @@
+module example {
+
+    const string HelloWorldTopic = "example::HelloWorld";
+
+    struct HelloWorld {
+        string message;
+        int32 count;
+    };
+
+};

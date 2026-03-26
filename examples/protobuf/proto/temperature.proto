@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package temperature;
+
+option go_package = "github.com/shirou/cyclone-dds-ws-bridge/examples/protobuf/gen/temperaturepb";
+
+message TemperatureReading {
+  string sensor_id = 1;
+  double temperature = 2;
+  string location = 3;
+  int64 timestamp_ns = 4;
+}

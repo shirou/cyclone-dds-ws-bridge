@@ -1,0 +1,12 @@
+module sensor {
+
+    const string SensorDataTopic = "sensor::SensorData";
+
+    struct SensorData {
+        @key int32 sensor_id;
+        float temperature;
+        float humidity;
+        int64 timestamp;
+    };
+
+};
