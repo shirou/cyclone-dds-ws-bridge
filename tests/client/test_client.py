@@ -40,7 +40,9 @@ def encode_header(msg_type: int, request_id: int, payload: bytes) -> bytes:
 
 def decode_header(data: bytes) -> tuple[int, int, int, int]:
     """Returns (version, msg_type, request_id, payload_length)."""
-    _, version, msg_type, request_id, payload_length = struct.unpack_from("<2sBBII", data, 0)
+    _, version, msg_type, request_id, payload_length = struct.unpack_from(
+        "<2sBBII", data, 0
+    )
     return version, msg_type, request_id, payload_length
 
 
@@ -75,15 +77,25 @@ def encode_key_descriptors(keys: list | None = None) -> bytes:
     return buf
 
 
-def make_subscribe_payload(topic: str, type_name: str, qos=None, keys=None) -> bytes:
-    return encode_string(topic) + encode_string(type_name) + encode_qos(qos) + encode_key_descriptors(keys)
+def make_subscribe_payload(
+    topic: str, type_name: str, qos=None, is_keyed: bool = False, keys=None
+) -> bytes:
+    return (
+        encode_string(topic)
+        + encode_string(type_name)
+        + encode_qos(qos)
+        + struct.pack("<B", int(is_keyed))
+        + encode_key_descriptors(keys)
+    )
 
 
 def make_unsubscribe_payload(topic: str, type_name: str) -> bytes:
     return encode_string(topic) + encode_string(type_name)
 
 
-def make_write_topic_payload(topic: str, type_name: str, data: bytes, qos=None, keys=None) -> bytes:
+def make_write_topic_payload(
+    topic: str, type_name: str, data: bytes, qos=None, keys=None
+) -> bytes:
     return (
         b"\x00"
         + encode_string(topic)
@@ -94,11 +106,21 @@ def make_write_topic_payload(topic: str, type_name: str, data: bytes, qos=None, 
     )
 
 
-def make_write_writer_id_payload(writer_id: int, data: bytes) -> bytes:
-    return b"\x01" + struct.pack("<I", writer_id) + data
+def make_write_writer_id_payload(
+    writer_id: int, data: bytes, key_bytes: bytes = b""
+) -> bytes:
+    return (
+        b"\x01"
+        + struct.pack("<I", writer_id)
+        + struct.pack("<I", len(key_bytes))
+        + key_bytes
+        + data
+    )
 
 
-def make_dispose_topic_payload(topic: str, type_name: str, key_data: bytes, qos=None, keys=None) -> bytes:
+def make_dispose_topic_payload(
+    topic: str, type_name: str, key_data: bytes, qos=None, keys=None
+) -> bytes:
     return (
         b"\x00"
         + encode_string(topic)
@@ -109,8 +131,16 @@ def make_dispose_topic_payload(topic: str, type_name: str, key_data: bytes, qos=
     )
 
 
-def make_create_writer_payload(topic: str, type_name: str, qos=None, keys=None) -> bytes:
-    return encode_string(topic) + encode_string(type_name) + encode_qos(qos) + encode_key_descriptors(keys)
+def make_create_writer_payload(
+    topic: str, type_name: str, qos=None, is_keyed: bool = False, keys=None
+) -> bytes:
+    return (
+        encode_string(topic)
+        + encode_string(type_name)
+        + encode_qos(qos)
+        + struct.pack("<B", int(is_keyed))
+        + encode_key_descriptors(keys)
+    )
 
 
 def make_delete_writer_payload(writer_id: int) -> bytes:

@@ -19,7 +19,11 @@ TYPE_NAME = "test::Opaque"
 def _make_reliability_qos(kind: int, max_blocking_ms: int) -> list:
     """Build a binary QoS policy list with a single Reliability policy."""
     # policy_id=0x01, kind(u8), max_blocking_time_ms(u64)
-    policy = struct.pack("<B", 0x01) + struct.pack("<B", kind) + struct.pack("<I", max_blocking_ms)
+    policy = (
+        struct.pack("<B", 0x01)
+        + struct.pack("<B", kind)
+        + struct.pack("<I", max_blocking_ms)
+    )
     return [policy]
 
 
@@ -42,6 +46,7 @@ def _make_subscribe_with_qos(topic: str, qos_policies: list) -> bytes:
         encode_string(topic)
         + encode_string(TYPE_NAME)
         + _encode_qos_policies(qos_policies)
+        + b"\x00"  # is_keyed
         + encode_key_descriptors(None)
     )
 

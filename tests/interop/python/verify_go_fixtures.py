@@ -55,8 +55,8 @@ VERIFIERS: dict[str, tuple[type, dict]] = {
             "val_ulong": 4294967295,
             "val_longlong": -9223372036854775808,
             "val_ulonglong": 18446744073709551615,
-            "val_float": lambda v: float_eq(v, 3.4028235e+38),
-            "val_double": lambda v: float_eq(v, 1.7976931348623157e+308),
+            "val_float": lambda v: float_eq(v, 3.4028235e38),
+            "val_double": lambda v: float_eq(v, 1.7976931348623157e308),
             "val_string": "boundary",
         },
     ),
@@ -139,7 +139,9 @@ def verify_fixture(name: str, cls: type, expected: dict) -> bool:
     ok = True
     for field, exp in expected.items():
         actual = getattr(obj, field)
-        if callable(exp) and not isinstance(exp, (int, float, str, bool, list, type, Color)):
+        if callable(exp) and not isinstance(
+            exp, (int, float, str, bool, list, type, Color)
+        ):
             if not exp(actual):
                 print(f"  FAIL {name}.{field}: predicate failed, got {actual!r}")
                 ok = False

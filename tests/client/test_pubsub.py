@@ -51,16 +51,13 @@ def test_pubsub_multiple_messages(client: Client):
     client.send_and_wait(MSG_SUBSCRIBE, payload)
     time.sleep(0.5)
 
-    messages = []
+    # Write and read one at a time to avoid DDS keep-last(1) coalescing
     for i in range(5):
         data = bytes([0x00, 0x01, 0x00, 0x00]) + bytes([i])
         write_payload = make_write_topic_payload(topic, TYPE_NAME, data)
         client.send_and_wait(MSG_WRITE, write_payload)
-        messages.append(data)
-
-    for expected in messages:
         msg = client.wait_for_data(topic)
-        assert msg.data == expected
+        assert msg.data == data
 
 
 def test_pubsub_large_payload(client: Client):

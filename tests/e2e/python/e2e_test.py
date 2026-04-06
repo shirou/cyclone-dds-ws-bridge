@@ -42,7 +42,9 @@ def test_pubsub_loopback():
         msg = wait_for_message(ch)
         assert msg.state == STATE_ALIVE, f"expected STATE_ALIVE, got {msg.state}"
         assert msg.topic_name == topic, f"topic: got {msg.topic_name!r}, want {topic!r}"
-        assert msg.data == test_data, f"data mismatch: got {msg.data.hex()}, want {test_data.hex()}"
+        assert (
+            msg.data == test_data
+        ), f"data mismatch: got {msg.data.hex()}, want {test_data.hex()}"
         print("PASS: test_pubsub_loopback")
     finally:
         client.close()
@@ -64,7 +66,9 @@ def test_create_writer_publish():
         client.write_with_writer(writer_id, test_data)
 
         msg = wait_for_message(ch)
-        assert msg.data == test_data, f"data mismatch: got {msg.data.hex()}, want {test_data.hex()}"
+        assert (
+            msg.data == test_data
+        ), f"data mismatch: got {msg.data.hex()}, want {test_data.hex()}"
 
         client.delete_writer(writer_id)
         print("PASS: test_create_writer_publish")
@@ -128,7 +132,9 @@ def test_multiple_clients():
 
         for i, ch in enumerate(channels):
             msg = wait_for_message(ch)
-            assert msg.data == test_data, f"sub[{i}] data mismatch: got {msg.data.hex()}, want {test_data.hex()}"
+            assert (
+                msg.data == test_data
+            ), f"sub[{i}] data mismatch: got {msg.data.hex()}, want {test_data.hex()}"
 
         print("PASS: test_multiple_clients")
     finally:
@@ -173,7 +179,9 @@ def test_unsubscribe():
         writer.write(topic, type_name, data2)
 
         msg2 = wait_for_message(ch2)
-        assert msg2.data == data2, f"client2 data mismatch: got {msg2.data.hex()}, want {data2.hex()}"
+        assert (
+            msg2.data == data2
+        ), f"client2 data mismatch: got {msg2.data.hex()}, want {data2.hex()}"
 
         # client1 should NOT have received
         time.sleep(0.5)

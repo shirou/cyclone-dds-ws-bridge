@@ -94,7 +94,9 @@ def test_writer_ownership_cross_session(make_client):
 
     # Client B tries to use client A's writer - should fail
     try:
-        write_payload = make_write_writer_id_payload(writer_id, bytes([0x00, 0x01, 0x00, 0x00, 0xFF]))
+        write_payload = make_write_writer_id_payload(
+            writer_id, bytes([0x00, 0x01, 0x00, 0x00, 0xFF])
+        )
         client_b.send_and_wait(MSG_WRITE, write_payload)
         assert False, "should have raised RuntimeError"
     except RuntimeError as e:
@@ -149,12 +151,17 @@ def test_session_cleanup_on_disconnect(make_client):
     sub.send_and_wait(MSG_SUBSCRIBE, make_subscribe_payload(topic, TYPE_NAME))
 
     writer = make_client()
-    writer.send_and_wait(MSG_WRITE, make_write_topic_payload(topic, TYPE_NAME, bytes([0x00, 0x01, 0x00, 0x00, 0x01])))
+    writer.send_and_wait(
+        MSG_WRITE,
+        make_write_topic_payload(
+            topic, TYPE_NAME, bytes([0x00, 0x01, 0x00, 0x00, 0x01])
+        ),
+    )
     sub.wait_for_data(topic)
 
     # Disconnect the writer abruptly
     writer.close()
-    time.sleep(0.5)
+    time.sleep(1.0)
 
     # Bridge should still work - new writer can publish
     writer2 = make_client()

@@ -35,7 +35,9 @@ STATE_NO_WRITERS = 2
 
 
 class DataMessage:
-    def __init__(self, topic_name: str, data: bytes, state: int, source_timestamp: int = 0):
+    def __init__(
+        self, topic_name: str, data: bytes, state: int, source_timestamp: int = 0
+    ):
         self.topic_name = topic_name
         self.data = data
         self.state = state
@@ -112,7 +114,9 @@ class BridgeClient:
                 self._next_id = 1
             return rid
 
-    def _send_and_wait(self, msg_type: int, payload: bytes, timeout: float = 10.0) -> tuple[int, bytes]:
+    def _send_and_wait(
+        self, msg_type: int, payload: bytes, timeout: float = 10.0
+    ) -> tuple[int, bytes]:
         rid = self._next_request_id()
         evt = threading.Event()
         self._pending[rid] = evt
@@ -186,7 +190,13 @@ class BridgeClient:
         assert resp_type == MSG_PONG, f"expected PONG, got 0x{resp_type:02x}"
 
     def subscribe(self, topic: str, type_name: str) -> list:
-        payload = _encode_string(topic) + _encode_string(type_name) + _encode_qos(None) + _encode_key_descriptors(None)
+        payload = (
+            _encode_string(topic)
+            + _encode_string(type_name)
+            + _encode_qos(None)
+            + b"\x00"
+            + _encode_key_descriptors(None)
+        )
         self._send_and_wait(MSG_SUBSCRIBE, payload)
         ch: list[DataMessage] = []
         with self._sub_lock:
@@ -222,7 +232,13 @@ class BridgeClient:
         self._send_and_wait(MSG_DISPOSE, payload)
 
     def create_writer(self, topic: str, type_name: str) -> int:
-        payload = _encode_string(topic) + _encode_string(type_name) + _encode_qos(None) + _encode_key_descriptors(None)
+        payload = (
+            _encode_string(topic)
+            + _encode_string(type_name)
+            + _encode_qos(None)
+            + b"\x00"
+            + _encode_key_descriptors(None)
+        )
         _, resp = self._send_and_wait(MSG_CREATE_WRITER, payload)
         return struct.unpack_from("<I", resp, 0)[0]
 
@@ -233,7 +249,7 @@ class BridgeClient:
     def write_with_writer(self, writer_id: int, data: bytes):
         """Fire-and-forget write via writer-id mode."""
         rid = self._next_request_id()
-        payload = b"\x01" + struct.pack("<I", writer_id) + data
+        payload = b"\x01" + struct.pack("<I", writer_id) + struct.pack("<I", 0) + data
         msg = _encode_header(MSG_WRITE, rid, payload) + payload
         self._ws.send_binary(msg)
 

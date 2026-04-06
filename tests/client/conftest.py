@@ -21,7 +21,9 @@ from test_client import (
 
 
 class DataMessage:
-    def __init__(self, topic_name: str, data: bytes, msg_type: int, source_timestamp: int = 0):
+    def __init__(
+        self, topic_name: str, data: bytes, msg_type: int, source_timestamp: int = 0
+    ):
         self.topic_name = topic_name
         self.data = data
         self.msg_type = msg_type
@@ -47,7 +49,7 @@ class Client:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                self._ws = websocket.create_connection(self.addr, timeout=5)
+                self._ws = websocket.create_connection(self.addr, timeout=30)
                 break
             except Exception:
                 time.sleep(0.5)
@@ -72,7 +74,9 @@ class Client:
                 self._next_id = 1
             return rid
 
-    def send_and_wait(self, msg_type: int, payload: bytes, timeout: float = 10.0) -> tuple[int, bytes]:
+    def send_and_wait(
+        self, msg_type: int, payload: bytes, timeout: float = 10.0
+    ) -> tuple[int, bytes]:
         rid = self._next_request_id()
         evt = threading.Event()
         self._pending[rid] = evt
@@ -96,6 +100,8 @@ class Client:
         while not self._closed:
             try:
                 _, data = self._ws.recv_data()
+            except websocket.WebSocketTimeoutException:
+                continue
             except Exception:
                 break
             if len(data) < HEADER_LEN:

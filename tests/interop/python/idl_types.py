@@ -3,7 +3,18 @@
 from dataclasses import dataclass
 
 from pycdr2 import IdlStruct
-from pycdr2.types import uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64, sequence
+from pycdr2.types import (
+    uint8,
+    int16,
+    uint16,
+    int32,
+    uint32,
+    int64,
+    uint64,
+    float32,
+    float64,
+    sequence,
+)
 from pycdr2 import Enum
 
 
@@ -20,6 +31,7 @@ class Color(Enum):
     RED = 0
     GREEN = 1
     BLUE = 2
+
 
 Color.__idl_annotations__ = {}
 

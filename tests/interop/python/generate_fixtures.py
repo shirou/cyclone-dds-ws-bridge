@@ -40,8 +40,8 @@ FIXTURES = {
         val_ulong=4294967295,
         val_longlong=-9223372036854775808,
         val_ulonglong=18446744073709551615,
-        val_float=3.4028235e+38,
-        val_double=1.7976931348623157e+308,
+        val_float=3.4028235e38,
+        val_double=1.7976931348623157e308,
         val_string="boundary",
     ),
     "primitive_types_zero": PrimitiveTypes(
