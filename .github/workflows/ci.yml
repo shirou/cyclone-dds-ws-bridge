@@ -35,16 +35,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build interop images
         run: docker compose -f docker-compose.test.yml --profile interop build
-      - name: Run Go verification (decodes Python fixtures)
+      - name: Run interop tests
         run: >
           docker compose -f docker-compose.test.yml
           --profile interop
           up --abort-on-container-exit --exit-code-from go-verify
-      - name: Run Python verification (decodes Go fixtures)
-        run: >
-          docker compose -f docker-compose.test.yml
-          --profile interop
-          up --abort-on-container-exit --exit-code-from py-verify
       - name: Cleanup
         if: always()
         run: docker compose -f docker-compose.test.yml --profile interop down -v

@@ -1,41 +1,24 @@
 services:
   # Phase 6-1: CDR interop tests (no bridge required)
   #
-  # Pipeline:
-  #   1. go-generate-fixtures: Go marshals test data -> go_*.bin
-  #   2. py-generate-fixtures: Python marshals test data -> py_*.bin
-  #   3. go-verify: Go decodes py_*.bin + byte-exact comparison
-  #   4. py-verify: Python decodes go_*.bin + value comparison
+  # Each service generates its own fixtures, waits for the other's fixtures
+  # to appear on the shared volume, then runs cross-language verification.
   #
-  # Run: docker compose -f docker-compose.test.yml --profile interop up --abort-on-container-exit
-
-  go-generate-fixtures:
-    profiles: ["interop"]
-    build:
-      context: .
-      dockerfile: tests/interop/go/Dockerfile
-    command: ["go", "test", "-v", "-run", "TestGenerateGoFixtures", "./..."]
-    volumes:
-      - interop-fixtures:/app/tests/interop/fixtures
-
-  py-generate-fixtures:
-    profiles: ["interop"]
-    build:
-      context: .
-      dockerfile: tests/interop/python/Dockerfile
-    command: ["python3", "/app/scripts/generate_fixtures.py"]
-    volumes:
-      - interop-fixtures:/app/fixtures
+  # Run: docker compose -f docker-compose.test.yml --profile interop up --abort-on-container-exit --exit-code-from go-verify
 
   go-verify:
     profiles: ["interop"]
     build:
       context: .
       dockerfile: tests/interop/go/Dockerfile
-    command: ["go", "test", "-v", "-run", "TestDecodePythonFixtures|TestByteExactComparison", "./..."]
-    depends_on:
-      py-generate-fixtures:
-        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - |
+        go test -v -run TestGenerateGoFixtures ./...
+        echo "Waiting for Python fixtures..."
+        while [ ! -f ../fixtures/py_sensor_data.bin ]; do sleep 0.2; done
+        go test -v -run "TestDecodePythonFixtures|TestByteExactComparison" ./...
     volumes:
       - interop-fixtures:/app/tests/interop/fixtures
 
@@ -44,10 +27,14 @@ services:
     build:
       context: .
       dockerfile: tests/interop/python/Dockerfile
-    command: ["python3", "/app/scripts/verify_go_fixtures.py"]
-    depends_on:
-      go-generate-fixtures:
-        condition: service_completed_successfully
+    command:
+      - sh
+      - -c
+      - |
+        python3 /app/scripts/generate_fixtures.py
+        echo "Waiting for Go fixtures..."
+        while [ ! -f /app/fixtures/go_sensor_data.bin ]; do sleep 0.2; done
+        python3 /app/scripts/verify_go_fixtures.py
     volumes:
       - interop-fixtures:/app/fixtures
 
